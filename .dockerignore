@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Build artifacts
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Generated files (optional - may want to include for faster builds)
+# internal/database/db/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/
+
