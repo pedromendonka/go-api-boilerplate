@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -22,11 +23,14 @@ import (
 )
 
 const (
-	appName    = "sanjow-main-api"
-	appVersion = "1.0.0"
+	appName        = "sanjow-main-api"
+	appDisplayName = "Sanjow Main API"
+	appVersion     = "1.0.0"
 )
 
 func main() {
+	printBanner()
+
 	// Initialize structured logger
 	logCfg := logging.DefaultConfig()
 	if os.Getenv("LOG_FORMAT") == "text" {
@@ -150,4 +154,20 @@ func main() {
 	}
 
 	logger.Info("server exited gracefully")
+}
+
+func printBanner() {
+	banner := `
+╔═══════════════════════════════════════════════════════════╗
+║                                                           ║
+║   ███████╗ █████╗ ███╗   ██╗     ██╗ ██████╗ ██╗    ██╗   ║
+║   ██╔════╝██╔══██╗████╗  ██║     ██║██╔═══██╗██║    ██║   ║
+║   ███████╗███████║██╔██╗ ██║     ██║██║   ██║██║ █╗ ██║   ║
+║   ╚════██║██╔══██║██║╚██╗██║██   ██║██║   ██║██║███╗██║   ║
+║   ███████║██║  ██║██║ ╚████║╚█████╔╝╚██████╔╝╚███╔███╔╝   ║
+║   ╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚════╝  ╚═════╝  ╚══╝╚══╝    ║
+║                                                           ║
+╚═══════════════════════════════════════════════════════════╝`
+	fmt.Println(banner)
+	fmt.Printf("\n  %s v%s\n\n", appDisplayName, appVersion)
 }
