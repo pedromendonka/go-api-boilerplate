@@ -1,10 +1,9 @@
-// Package service handles user business logic for users.
+// Package service handles user business logic.
 package service
 
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,28 +12,20 @@ import (
 
 	"sanjow-main-api/internal/database/db"
 	"sanjow-main-api/internal/domain/user/repository"
+	"sanjow-main-api/internal/shared/apperror"
 )
 
-var (
-	// ErrUserNotFound is returned when a user is not found in the repository.
-	ErrUserNotFound = errors.New("user not found")
-	// ErrUserAlreadyExists is returned when a user with the same email already exists.
-	ErrUserAlreadyExists = errors.New("user already exists")
-	// ErrInvalidInput is returned when the input provided to a function is invalid.
-	ErrInvalidInput = errors.New("invalid input")
-)
-
-// Service handles user business logic
+// Service handles user business logic.
 type Service struct {
 	repo *repository.Repository
 }
 
-// New creates a new user service
+// New creates a new user service.
 func New(repo *repository.Repository) *Service {
 	return &Service{repo: repo}
 }
 
-// CreateUserInput represents input for creating a user
+// CreateUserInput represents input for creating a user.
 type CreateUserInput struct {
 	Email     string
 	Password  string
@@ -42,14 +33,14 @@ type CreateUserInput struct {
 	LastName  string
 }
 
-// UpdateUserInput represents input for updating a user
+// UpdateUserInput represents input for updating a user.
 type UpdateUserInput struct {
 	Email     *string
 	FirstName *string
 	LastName  *string
 }
 
-// UserResponse represents a user response (without sensitive data)
+// UserResponse represents a user response (without sensitive data).
 type UserResponse struct {
 	ID        uuid.UUID `json:"id"`
 	Email     string    `json:"email"`
@@ -59,7 +50,7 @@ type UserResponse struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// ToResponse converts a db.User to UserResponse
+// ToResponse converts a db.User to UserResponse.
 func ToResponse(user *db.User) *UserResponse {
 	return &UserResponse{
 		ID:        user.ID,
@@ -71,61 +62,63 @@ func ToResponse(user *db.User) *UserResponse {
 	}
 }
 
-// Create creates a new user
+// Create creates a new user.
 func (s *Service) Create(ctx context.Context, input CreateUserInput) (*UserResponse, error) {
-	// Validate input
 	if input.Email == "" || input.Password == "" {
-		return nil, ErrInvalidInput
+		return nil, apperror.ErrInvalidInput
 	}
 
 	// Check if user already exists
 	_, err := s.repo.GetByEmail(ctx, input.Email)
 	if err == nil {
-		return nil, ErrUserAlreadyExists
+		return nil, apperror.ErrUserAlreadyExists
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
-		return nil, fmt.Errorf("failed to check existing user: %w", err)
+		return nil, apperror.Wrap(apperror.CodeInternal, "failed to check existing user", err)
 	}
 
-	// Hash password using bcrypt
-	passwordHash := hashPassword(input.Password)
+	// Hash password
+	passwordHash, err := hashPassword(input.Password)
+	if err != nil {
+		return nil, err
+	}
 
 	// Create user
 	user, err := s.repo.Create(ctx, input.Email, passwordHash, input.FirstName, input.LastName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create user: %w", err)
+		return nil, apperror.Wrap(apperror.CodeInternal, "failed to create user", err)
 	}
 
 	return ToResponse(user), nil
 }
 
-// GetByID retrieves a user by ID
+// GetByID retrieves a user by ID.
 func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*UserResponse, error) {
 	user, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrUserNotFound
+			return nil, apperror.ErrUserNotFound
 		}
-		return nil, fmt.Errorf("failed to get user: %w", err)
+		return nil, apperror.Wrap(apperror.CodeInternal, "failed to get user", err)
 	}
 
 	return ToResponse(user), nil
 }
 
-// GetByEmail retrieves a user by email
+// GetByEmail retrieves a user by email.
 func (s *Service) GetByEmail(ctx context.Context, email string) (*UserResponse, error) {
 	user, err := s.repo.GetByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrUserNotFound
+			return nil, apperror.ErrUserNotFound
 		}
-		return nil, fmt.Errorf("failed to get user: %w", err)
+		return nil, apperror.Wrap(apperror.CodeInternal, "failed to get user", err)
 	}
 
 	return ToResponse(user), nil
 }
 
-// List retrieves a paginated list of users
+// List retrieves a paginated list of users.
 func (s *Service) List(ctx context.Context, page, pageSize int) ([]*UserResponse, error) {
 	if page < 1 {
 		page = 1
@@ -138,7 +131,7 @@ func (s *Service) List(ctx context.Context, page, pageSize int) ([]*UserResponse
 	// #nosec G115 -- pageSize <= 100 and page is bounded, offset fits in int32
 	users, err := s.repo.List(ctx, int32(pageSize), int32(offset))
 	if err != nil {
-		return nil, fmt.Errorf("failed to list users: %w", err)
+		return nil, apperror.Wrap(apperror.CodeInternal, "failed to list users", err)
 	}
 
 	responses := make([]*UserResponse, len(users))
@@ -149,33 +142,32 @@ func (s *Service) List(ctx context.Context, page, pageSize int) ([]*UserResponse
 	return responses, nil
 }
 
-// Update updates a user's information
+// Update updates a user's information.
 func (s *Service) Update(ctx context.Context, id uuid.UUID, input UpdateUserInput) (*UserResponse, error) {
 	user, err := s.repo.Update(ctx, id, input.Email, input.FirstName, input.LastName)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrUserNotFound
+			return nil, apperror.ErrUserNotFound
 		}
-		return nil, fmt.Errorf("failed to update user: %w", err)
+		return nil, apperror.Wrap(apperror.CodeInternal, "failed to update user", err)
 	}
 
 	return ToResponse(user), nil
 }
 
-// Delete soft deletes a user
+// Delete soft deletes a user.
 func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 	if err := s.repo.SoftDelete(ctx, id); err != nil {
-		return fmt.Errorf("failed to delete user: %w", err)
+		return apperror.Wrap(apperror.CodeInternal, "failed to delete user", err)
 	}
 	return nil
 }
 
-// hashPassword hashes a password using bcrypt
-func hashPassword(password string) string {
+// hashPassword hashes a password using bcrypt.
+func hashPassword(password string) (string, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		// In production, handle this error properly
-		return ""
+		return "", apperror.Wrap(apperror.CodeHashingFailed, "failed to hash password", err)
 	}
-	return string(hash)
+	return string(hash), nil
 }

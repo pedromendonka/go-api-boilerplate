@@ -2,63 +2,111 @@
 package handler
 
 import (
+	"log/slog"
 	"net/http"
 	"strconv"
 
-	"sanjow-main-api/internal/domain/user/service"
-	"sanjow-main-api/internal/shared/ctx"
-	"sanjow-main-api/internal/shared/middleware"
-
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+
+	"sanjow-main-api/internal/domain/user/service"
+	"sanjow-main-api/internal/shared/apperror"
+	"sanjow-main-api/internal/shared/ctx"
+	"sanjow-main-api/internal/shared/logging"
+	"sanjow-main-api/internal/shared/middleware"
 )
 
-// Handler handles HTTP requests for users
+// Handler handles HTTP requests for users.
 type Handler struct {
 	service *service.Service
 }
 
-// New creates a new user handler
+// New creates a new user handler.
 func New(svc *service.Service) *Handler {
 	return &Handler{service: svc}
 }
 
-// RegisterRoutes registers user routes
+// RegisterRoutes registers user routes.
 func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 	users := router.Group("/users")
 	{
 		users.POST("", h.Create)
 		users.GET("", h.List)
 		users.GET(":id", h.GetByID)
-		// Protect update and delete with Auth + current user injection
 		users.PUT(":id", middleware.Auth(), h.injectCurrentUser(), h.Update)
 		users.DELETE(":id", middleware.Auth(), h.injectCurrentUser(), h.Delete)
 	}
 }
 
-// injectCurrentUser is a middleware that looks up the user by user_id from context and stores
-// the domain response under the "current_user" key for handlers to use.
+// handleError handles errors consistently across all handlers.
+func (h *Handler) handleError(c *gin.Context, err error) {
+	logger := logging.FromContext(c.Request.Context())
+
+	if appErr, ok := apperror.AsAppError(err); ok {
+		if appErr.Err != nil {
+			logger.Error("request failed",
+				slog.String("code", string(appErr.Code)),
+				slog.String("error", appErr.Err.Error()),
+			)
+		} else {
+			logger.Warn("request failed",
+				slog.String("code", string(appErr.Code)),
+			)
+		}
+		c.JSON(appErr.HTTPStatus(), gin.H{
+			"error": appErr.Message,
+			"code":  appErr.Code,
+		})
+		return
+	}
+
+	logger.Error("unexpected error", slog.String("error", err.Error()))
+	c.JSON(http.StatusInternalServerError, gin.H{
+		"error": "internal server error",
+		"code":  apperror.CodeInternal,
+	})
+}
+
+// injectCurrentUser is a middleware that loads the current user from the JWT context.
 func (h *Handler) injectCurrentUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		logger := logging.FromContext(c.Request.Context())
+
 		v, ok := c.Get(string(ctx.UserID))
 		if !ok {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing user id in context"})
+			logger.Warn("missing user id in context")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "missing user id in context",
+				"code":  apperror.CodeUnauthorized,
+			})
 			return
 		}
 
 		uid, ok := v.(uuid.UUID)
 		if !ok {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid user id in context"})
+			logger.Warn("invalid user id type in context")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "invalid user id in context",
+				"code":  apperror.CodeUnauthorized,
+			})
 			return
 		}
 
 		user, err := h.service.GetByID(c.Request.Context(), uid)
 		if err != nil {
-			if err == service.ErrUserNotFound {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
+			if apperror.Is(err, apperror.CodeNotFound) {
+				logger.Warn("user not found", slog.String("user_id", uid.String()))
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+					"error": "user not found",
+					"code":  apperror.CodeUnauthorized,
+				})
 				return
 			}
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "failed to load user"})
+			logger.Error("failed to load user", slog.String("error", err.Error()))
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+				"error": "failed to load user",
+				"code":  apperror.CodeInternal,
+			})
 			return
 		}
 
@@ -67,7 +115,7 @@ func (h *Handler) injectCurrentUser() gin.HandlerFunc {
 	}
 }
 
-// CreateUserRequest represents the request body for creating a user
+// CreateUserRequest represents the request body for creating a user.
 type CreateUserRequest struct {
 	Email     string `json:"email" binding:"required,email"`
 	Password  string `json:"password" binding:"required,min=8"`
@@ -75,18 +123,24 @@ type CreateUserRequest struct {
 	LastName  string `json:"last_name"`
 }
 
-// UpdateUserRequest represents the request body for updating a user
+// UpdateUserRequest represents the request body for updating a user.
 type UpdateUserRequest struct {
 	Email     *string `json:"email,omitempty"`
 	FirstName *string `json:"first_name,omitempty"`
 	LastName  *string `json:"last_name,omitempty"`
 }
 
-// Create handles POST /users
+// Create handles POST /users.
 func (h *Handler) Create(c *gin.Context) {
+	logger := logging.FromContext(c.Request.Context())
+
 	var req CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		logger.Warn("invalid request body", slog.String("error", err.Error()))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+			"code":  apperror.CodeInvalidInput,
+		})
 		return
 	}
 
@@ -97,50 +151,46 @@ func (h *Handler) Create(c *gin.Context) {
 		LastName:  req.LastName,
 	})
 	if err != nil {
-		switch err {
-		case service.ErrUserAlreadyExists:
-			c.JSON(http.StatusConflict, gin.H{"error": "user already exists"})
-		case service.ErrInvalidInput:
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid input"})
-		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
-		}
+		h.handleError(c, err)
 		return
 	}
 
+	logger.Info("user created", slog.String("user_id", user.ID.String()))
 	c.JSON(http.StatusCreated, user)
 }
 
-// GetByID handles GET /users/:id
+// GetByID handles GET /users/:id.
 func (h *Handler) GetByID(c *gin.Context) {
+	logger := logging.FromContext(c.Request.Context())
+
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		logger.Warn("invalid user id", slog.String("id", idStr))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid user id",
+			"code":  apperror.CodeInvalidInput,
+		})
 		return
 	}
 
 	user, err := h.service.GetByID(c.Request.Context(), id)
 	if err != nil {
-		if err == service.ErrUserNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		h.handleError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, user)
 }
 
-// List handles GET /users
+// List handles GET /users.
 func (h *Handler) List(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 
 	users, err := h.service.List(c.Request.Context(), page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		h.handleError(c, err)
 		return
 	}
 
@@ -151,18 +201,28 @@ func (h *Handler) List(c *gin.Context) {
 	})
 }
 
-// Update handles PUT /users/:id
+// Update handles PUT /users/:id.
 func (h *Handler) Update(c *gin.Context) {
+	logger := logging.FromContext(c.Request.Context())
+
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		logger.Warn("invalid user id", slog.String("id", idStr))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid user id",
+			"code":  apperror.CodeInvalidInput,
+		})
 		return
 	}
 
 	var req UpdateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		logger.Warn("invalid request body", slog.String("error", err.Error()))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+			"code":  apperror.CodeInvalidInput,
+		})
 		return
 	}
 
@@ -172,30 +232,34 @@ func (h *Handler) Update(c *gin.Context) {
 		LastName:  req.LastName,
 	})
 	if err != nil {
-		if err == service.ErrUserNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		h.handleError(c, err)
 		return
 	}
 
+	logger.Info("user updated", slog.String("user_id", user.ID.String()))
 	c.JSON(http.StatusOK, user)
 }
 
-// Delete handles DELETE /users/:id
+// Delete handles DELETE /users/:id.
 func (h *Handler) Delete(c *gin.Context) {
+	logger := logging.FromContext(c.Request.Context())
+
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		logger.Warn("invalid user id", slog.String("id", idStr))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid user id",
+			"code":  apperror.CodeInvalidInput,
+		})
 		return
 	}
 
 	if err := h.service.Delete(c.Request.Context(), id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		h.handleError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusNoContent, nil)
+	logger.Info("user deleted", slog.String("user_id", id.String()))
+	c.Status(http.StatusNoContent)
 }

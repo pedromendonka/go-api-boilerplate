@@ -1,13 +1,16 @@
-// Package handler | HTTP handler for authentication-related endpoints.
+// Package handler provides HTTP handlers for authentication endpoints.
 package handler
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
 
-	"sanjow-main-api/internal/domain/auth/service"
-
 	"github.com/gin-gonic/gin"
+
+	"sanjow-main-api/internal/domain/auth/service"
+	"sanjow-main-api/internal/shared/apperror"
+	"sanjow-main-api/internal/shared/logging"
 )
 
 // Handler handles authentication HTTP requests.
@@ -31,23 +34,57 @@ type LoginResponse struct {
 	Token string `json:"token"`
 }
 
-// RegisterRoutes registers all auth routes
+// RegisterRoutes registers all auth routes.
 func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 	router.POST("/login", h.Login)
 }
 
-// Login handles user authentication
-func (h *Handler) Login(c *gin.Context) {
-	var req LoginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+// handleError handles errors consistently.
+func (h *Handler) handleError(c *gin.Context, err error) {
+	logger := logging.FromContext(c.Request.Context())
+
+	if appErr, ok := apperror.AsAppError(err); ok {
+		if appErr.Err != nil {
+			logger.Error("request failed",
+				slog.String("code", string(appErr.Code)),
+				slog.String("error", appErr.Err.Error()),
+			)
+		} else {
+			logger.Warn("request failed",
+				slog.String("code", string(appErr.Code)),
+			)
+		}
+		c.JSON(appErr.HTTPStatus(), gin.H{
+			"error": appErr.Message,
+			"code":  appErr.Code,
+		})
 		return
 	}
 
-	// Default expiry of 24 hours, can be parameterized
+	logger.Error("unexpected error", slog.String("error", err.Error()))
+	c.JSON(http.StatusInternalServerError, gin.H{
+		"error": "internal server error",
+		"code":  apperror.CodeInternal,
+	})
+}
+
+// Login handles user authentication.
+func (h *Handler) Login(c *gin.Context) {
+	logger := logging.FromContext(c.Request.Context())
+
+	var req LoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("invalid login request", slog.String("error", err.Error()))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid request",
+			"code":  apperror.CodeInvalidInput,
+		})
+		return
+	}
+
 	token, err := h.service.Authenticate(c.Request.Context(), req.Email, req.Password, 24*time.Hour)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		h.handleError(c, err)
 		return
 	}
 

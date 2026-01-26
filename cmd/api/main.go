@@ -3,74 +3,88 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	"sanjow-main-api/config"
 	"sanjow-main-api/internal/database"
 	"sanjow-main-api/internal/database/db"
 	"sanjow-main-api/internal/domain/auth"
 	"sanjow-main-api/internal/domain/user"
-
-	"github.com/gin-gonic/gin"
+	"sanjow-main-api/internal/shared/logging"
+	"sanjow-main-api/internal/shared/middleware"
 )
 
 const (
-	appName    = "Sanjow Main API"
+	appName    = "sanjow-main-api"
 	appVersion = "1.0.0"
 )
 
 func main() {
-	// Print startup banner
-	printBanner()
+	// Initialize structured logger
+	logCfg := logging.DefaultConfig()
+	if os.Getenv("LOG_FORMAT") == "text" {
+		logCfg.Format = "text"
+	}
+	logger := logging.New(logCfg)
+	slog.SetDefault(logger)
+
+	logger.Info("starting application",
+		slog.String("app", appName),
+		slog.String("version", appVersion),
+	)
 
 	// Load configuration
 	cfg := config.Load()
 
-	// Validate required environment variables
 	if err := cfg.Validate(); err != nil {
-		log.Fatalf("❌ Configuration error: %v", err)
+		logger.Error("configuration error", slog.String("error", err.Error()))
+		os.Exit(1)
 	}
 
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Initialize database connection
-	log.Println("📦 Connecting to database...")
+	logger.Info("connecting to database")
 	dbPool, err := database.NewPool(ctx, cfg.Database.URL)
 	if err != nil {
-		log.Fatalf("❌ Failed to connect to database: %v", err)
+		logger.Error("failed to connect to database", slog.String("error", err.Error()))
+		os.Exit(1)
 	}
 	defer cancel()
 	defer database.Close(dbPool)
-	log.Println("✅ Database connected")
+	logger.Info("database connected")
 
 	// Run migrations
-	log.Println("🔄 Running migrations...")
+	logger.Info("running migrations")
 	migrator := database.NewMigrator(dbPool, "internal/database/migrations")
 	if err := migrator.Migrate(ctx); err != nil {
-		log.Printf("⚠️  Warning: Migration failed: %v", err)
+		logger.Warn("migration failed", slog.String("error", err.Error()))
 	} else {
-		log.Println("✅ Migrations completed")
+		logger.Info("migrations completed")
 	}
 
 	// Initialize sqlc queries
 	queries := db.New(dbPool)
-	_ = queries // Use this in your repositories
+	_ = queries
 
-	// Initialize user domain
+	// Initialize domains
 	userDomain := user.New(dbPool)
-
-	// Initialize auth domain (uses user repository directly - no circular dependency)
 	authDomain := auth.New(userDomain.Repository, cfg.JWT.Secret)
 
 	// Initialize Gin router
-	router := gin.Default()
+	gin.SetMode(gin.ReleaseMode)
+	router := gin.New()
+	router.Use(gin.Recovery())
+	router.Use(middleware.RequestID())
+	router.Use(middleware.Logger(logger))
 
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
@@ -81,7 +95,6 @@ func main() {
 			})
 			return
 		}
-
 		c.JSON(http.StatusOK, gin.H{
 			"status":   "healthy",
 			"database": "connected",
@@ -89,11 +102,10 @@ func main() {
 	})
 
 	router.GET("/ping", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"message": "pong",
-		})
+		c.JSON(http.StatusOK, gin.H{"message": "pong"})
 	})
 
+	// Register API routes
 	api := router.Group("/api")
 	{
 		userDomain.RegisterRoutes(api)
@@ -109,58 +121,33 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Run server in a goroutine
 	go func() {
-		printStartupInfo(cfg.Server.Port)
+		logger.Info("server started",
+			slog.String("port", cfg.Server.Port),
+			slog.String("health", "http://localhost:"+cfg.Server.Port+"/health"),
+			slog.String("api_base", "http://localhost:"+cfg.Server.Port+"/api"),
+		)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("❌ Failed to start server: %v", err)
+			logger.Error("server failed", slog.String("error", err.Error()))
+			os.Exit(1)
 		}
 	}()
 
-	// Wait for interrupt signal for graceful shutdown
+	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("\n🛑 Shutting down server...")
+	logger.Info("shutting down server")
 
-	// Graceful shutdown with timeout
+	// Graceful shutdown
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Printf("❌ Server forced to shutdown: %v", err)
+		logger.Error("server forced to shutdown", slog.String("error", err.Error()))
 		return
 	}
 
-	log.Println("👋 Server exited gracefully")
-}
-
-func printBanner() {
-	banner := `
-╔═══════════════════════════════════════════════════════════╗
-║                                                           ║
-║   ███████╗ █████╗ ███╗   ██╗     ██╗ ██████╗ ██╗    ██╗   ║
-║   ██╔════╝██╔══██╗████╗  ██║     ██║██╔═══██╗██║    ██║   ║
-║   ███████╗███████║██╔██╗ ██║     ██║██║   ██║██║ █╗ ██║   ║
-║   ╚════██║██╔══██║██║╚██╗██║██   ██║██║   ██║██║███╗██║   ║
-║   ███████║██║  ██║██║ ╚████║╚█████╔╝╚██████╔╝╚███╔███╔╝   ║
-║   ╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚════╝  ╚═════╝  ╚══╝╚══╝    ║
-║                                                           ║
-╚═══════════════════════════════════════════════════════════╝`
-	fmt.Println(banner)
-	fmt.Printf("\n  %s v%s\n\n", appName, appVersion)
-}
-
-func printStartupInfo(port string) {
-	log.Println("═══════════════════════════════════════════════════════════")
-	log.Printf("🚀 %s is running!", appName)
-	log.Println("═══════════════════════════════════════════════════════════")
-	log.Printf("   Version:     %s", appVersion)
-	log.Printf("   Port:        %s", port)
-	log.Printf("   Health:      http://localhost:%s/health", port)
-	log.Printf("   API Base:    http://localhost:%s/api", port)
-	log.Println("═══════════════════════════════════════════════════════════")
-	log.Println("   Press Ctrl+C to stop")
-	log.Println("═══════════════════════════════════════════════════════════")
+	logger.Info("server exited gracefully")
 }

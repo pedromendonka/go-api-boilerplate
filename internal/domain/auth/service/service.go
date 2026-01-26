@@ -3,16 +3,18 @@ package service
 
 import (
 	"context"
-	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/crypto/bcrypt"
 
 	"sanjow-main-api/internal/database/db"
+	"sanjow-main-api/internal/shared/apperror"
+	"sanjow-main-api/internal/shared/logging"
 )
 
-// UserRepository defines what auth needs from user domain (Go idiom: consumer defines interface)
+// UserRepository defines what auth needs from user domain (Go idiom: consumer defines interface).
 type UserRepository interface {
 	GetByEmail(ctx context.Context, email string) (*db.User, error)
 }
@@ -31,15 +33,25 @@ func New(userRepo UserRepository, jwtSecret string) *Service {
 	}
 }
 
-// Authenticate verifies credentials and returns a JWT token
+// Authenticate verifies credentials and returns a JWT token.
 func (s *Service) Authenticate(ctx context.Context, email, password string, expiry time.Duration) (string, error) {
+	logger := logging.FromContext(ctx)
+
 	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
-		return "", errors.New("invalid credentials")
+		// Log the actual error for debugging, return generic message to client
+		logger.Warn("authentication failed: user lookup",
+			slog.String("email", email),
+			slog.String("error", err.Error()),
+		)
+		return "", apperror.ErrInvalidCredentials
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-		return "", errors.New("invalid credentials")
+		logger.Warn("authentication failed: password mismatch",
+			slog.String("email", email),
+		)
+		return "", apperror.ErrInvalidCredentials
 	}
 
 	// Generate JWT
@@ -52,8 +64,15 @@ func (s *Service) Authenticate(ctx context.Context, email, password string, expi
 
 	tokenString, err := token.SignedString(s.jwtSecret)
 	if err != nil {
-		return "", errors.New("failed to generate token")
+		logger.Error("failed to sign JWT token",
+			slog.String("error", err.Error()),
+		)
+		return "", apperror.Wrap(apperror.CodeTokenGenFailed, "failed to generate token", err)
 	}
+
+	logger.Info("user authenticated successfully",
+		slog.String("user_id", user.ID.String()),
+	)
 
 	return tokenString, nil
 }
