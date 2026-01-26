@@ -1,86 +1,110 @@
-// Package middleware | Gin middleware for JWT authentication, setting user context.
+// Package middleware provides HTTP middleware for the application.
 package middleware
 
 import (
+	"log/slog"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	jwt "github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 
+	"sanjow-main-api/internal/shared/apperror"
 	"sanjow-main-api/internal/shared/ctx"
+	"sanjow-main-api/internal/shared/logging"
 )
 
-// Auth middleware verifies a Bearer JWT and sets the ctx.User and typed ctx.UserID values in context
-func Auth() gin.HandlerFunc {
-	secret := os.Getenv("JWT_SECRET")
+// Auth returns middleware that verifies a Bearer JWT and sets user context.
+// The secret parameter is required and must not be empty.
+func Auth(secret string) gin.HandlerFunc {
+	if secret == "" {
+		panic("middleware: Auth requires a non-empty JWT secret")
+	}
+
+	secretBytes := []byte(secret)
+
 	return func(c *gin.Context) {
+		logger := logging.FromContext(c.Request.Context())
+
+		// Extract Authorization header
 		auth := c.GetHeader("Authorization")
 		if auth == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing authorization header"})
+			logger.Warn("auth failed: missing authorization header")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "missing authorization header",
+				"code":  apperror.CodeUnauthorized,
+			})
 			return
 		}
 
+		// Parse Bearer token
 		parts := strings.SplitN(auth, " ", 2)
 		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid authorization header"})
+			logger.Warn("auth failed: invalid authorization header format")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "invalid authorization header",
+				"code":  apperror.CodeUnauthorized,
+			})
 			return
 		}
 
 		tokenStr := parts[1]
 
-		if secret == "" {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "jwt secret not configured"})
-			return
-		}
-
 		// Parse and validate token
 		token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
-			// Verify signing method
 			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, jwt.ErrTokenUnverifiable
 			}
-			return []byte(secret), nil
+			return secretBytes, nil
 		})
 		if err != nil || !token.Valid {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			logger.Warn("auth failed: invalid token", slog.String("error", err.Error()))
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "invalid token",
+				"code":  apperror.CodeUnauthorized,
+			})
 			return
 		}
 
-		// Extract claims as map
+		// Extract claims
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token claims"})
+			logger.Warn("auth failed: invalid token claims")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "invalid token claims",
+				"code":  apperror.CodeUnauthorized,
+			})
 			return
 		}
 
-		// Try to extract user id from 'sub' or 'user_id' claim
-		var idStr string
-		if sub, ok := claims["sub"].(string); ok && sub != "" {
-			idStr = sub
-		} else if uid, ok := claims["user_id"].(string); ok && uid != "" {
-			idStr = uid
-		}
-
-		if idStr == "" {
-			// no typed user id available; proceed but without typed user_id
-			c.Set(string(ctx.User), claims)
-			c.Next()
+		// Extract user ID from 'sub' claim (JWT standard)
+		sub, ok := claims["sub"].(string)
+		if !ok || sub == "" {
+			logger.Warn("auth failed: missing sub claim in token")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "invalid token: missing subject",
+				"code":  apperror.CodeUnauthorized,
+			})
 			return
 		}
 
 		// Parse UUID
-		uid, err := uuid.Parse(idStr)
+		userID, err := uuid.Parse(sub)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid user id in token"})
+			logger.Warn("auth failed: invalid user id format", slog.String("sub", sub))
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "invalid token: invalid subject format",
+				"code":  apperror.CodeUnauthorized,
+			})
 			return
 		}
 
-		// Set claims and typed user id in context for handlers
+		// Set context values
 		c.Set(string(ctx.User), claims)
-		c.Set(string(ctx.UserID), uid)
+		c.Set(string(ctx.UserID), userID)
+
+		logger.Debug("auth successful", slog.String("user_id", userID.String()))
 		c.Next()
 	}
 }

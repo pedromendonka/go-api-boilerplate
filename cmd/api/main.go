@@ -79,7 +79,7 @@ func main() {
 	_ = queries
 
 	// Initialize domains
-	userDomain := user.New(dbPool)
+	userDomain := user.New(dbPool, cfg.JWT.Secret)
 	authDomain := auth.New(userDomain.Repository, cfg.JWT.Secret)
 
 	// Initialize Gin router

@@ -124,7 +124,7 @@ SQL-first approach using sqlc. Edit queries in `internal/database/queries/`, the
 Protected routes use middleware chain:
 1. `middleware.RequestID()` - Add request ID
 2. `middleware.Logger()` - Log requests
-3. `middleware.Auth()` - Verify JWT Bearer token
+3. `middleware.Auth(secret)` - Verify JWT Bearer token (uses `sub` claim per JWT spec)
 4. `injectCurrentUser()` - Load user from context
 
 ### Dependency Injection

@@ -17,11 +17,12 @@ type Domain struct {
 	Repository *repository.Repository
 }
 
-// New creates a new user domain with all its components wired together
-func New(pool *pgxpool.Pool) *Domain {
+// New creates a new user domain with all its components wired together.
+// jwtSecret is required for protected route authentication.
+func New(pool *pgxpool.Pool, jwtSecret string) *Domain {
 	repo := repository.New(pool)
 	svc := service.New(repo)
-	h := handler.New(svc)
+	h := handler.New(svc, jwtSecret)
 
 	return &Domain{
 		Handler:    h,

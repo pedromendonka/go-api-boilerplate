@@ -18,23 +18,29 @@ import (
 
 // Handler handles HTTP requests for users.
 type Handler struct {
-	service *service.Service
+	service   *service.Service
+	jwtSecret string
 }
 
 // New creates a new user handler.
-func New(svc *service.Service) *Handler {
-	return &Handler{service: svc}
+func New(svc *service.Service, jwtSecret string) *Handler {
+	return &Handler{
+		service:   svc,
+		jwtSecret: jwtSecret,
+	}
 }
 
 // RegisterRoutes registers user routes.
 func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
+	authMiddleware := middleware.Auth(h.jwtSecret)
+
 	users := router.Group("/users")
 	{
 		users.POST("", h.Create)
 		users.GET("", h.List)
 		users.GET(":id", h.GetByID)
-		users.PUT(":id", middleware.Auth(), h.injectCurrentUser(), h.Update)
-		users.DELETE(":id", middleware.Auth(), h.injectCurrentUser(), h.Delete)
+		users.PUT(":id", authMiddleware, h.injectCurrentUser(), h.Update)
+		users.DELETE(":id", authMiddleware, h.injectCurrentUser(), h.Delete)
 	}
 }
 

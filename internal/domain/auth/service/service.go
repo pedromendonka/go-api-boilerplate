@@ -54,12 +54,12 @@ func (s *Service) Authenticate(ctx context.Context, email, password string, expi
 		return "", apperror.ErrInvalidCredentials
 	}
 
-	// Generate JWT
+	// Generate JWT with standard claims
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"user_id": user.ID.String(),
-		"email":   user.Email,
-		"exp":     time.Now().Add(expiry).Unix(),
-		"iat":     time.Now().Unix(),
+		"sub":   user.ID.String(), // subject (user ID) per JWT spec
+		"email": user.Email,
+		"exp":   time.Now().Add(expiry).Unix(),
+		"iat":   time.Now().Unix(),
 	})
 
 	tokenString, err := token.SignedString(s.jwtSecret)
