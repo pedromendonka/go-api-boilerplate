@@ -42,12 +42,12 @@ type UpdateUserInput struct {
 
 // UserResponse represents a user response (without sensitive data).
 type UserResponse struct {
-	ID        uuid.UUID `json:"id"`
-	Email     string    `json:"email"`
-	FirstName *string   `json:"first_name,omitempty"`
-	LastName  *string   `json:"last_name,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID        uuid.UUID `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Email     string    `json:"email" example:"user@example.com"`
+	FirstName *string   `json:"first_name,omitempty" example:"John"`
+	LastName  *string   `json:"last_name,omitempty" example:"Doe"`
+	CreatedAt time.Time `json:"created_at" example:"2024-01-15T10:00:00Z"`
+	UpdatedAt time.Time `json:"updated_at" example:"2024-01-15T10:00:00Z"`
 }
 
 // ToResponse converts a db.User to UserResponse.

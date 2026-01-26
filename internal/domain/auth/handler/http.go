@@ -25,13 +25,13 @@ func New(svc *service.Service) *Handler {
 
 // LoginRequest represents a login request payload.
 type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
+	Email    string `json:"email" binding:"required,email" example:"user@example.com"`
+	Password string `json:"password" binding:"required" example:"password123"`
 }
 
 // LoginResponse represents a login response payload.
 type LoginResponse struct {
-	Token string `json:"token"`
+	Token string `json:"token" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`
 }
 
 // RegisterRoutes registers all auth routes.
@@ -68,7 +68,17 @@ func (h *Handler) handleError(c *gin.Context, err error) {
 	})
 }
 
-// Login handles user authentication.
+// Login godoc
+// @Summary User login
+// @Description Authenticate with email and password to receive a JWT token
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body LoginRequest true "Login credentials"
+// @Success 200 {object} LoginResponse "JWT token"
+// @Failure 400 {object} apperror.ErrorResponse "Invalid request"
+// @Failure 401 {object} apperror.ErrorResponse "Invalid credentials"
+// @Router /login [post]
 func (h *Handler) Login(c *gin.Context) {
 	logger := logging.FromContext(c.Request.Context())
 

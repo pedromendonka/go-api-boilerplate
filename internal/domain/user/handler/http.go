@@ -111,20 +111,30 @@ func (h *Handler) requireUser() gin.HandlerFunc {
 
 // CreateUserRequest represents the request body for creating a user.
 type CreateUserRequest struct {
-	Email     string `json:"email" binding:"required,email"`
-	Password  string `json:"password" binding:"required,min=8"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
+	Email     string `json:"email" binding:"required,email" example:"user@example.com"`
+	Password  string `json:"password" binding:"required,min=8" example:"password123"`
+	FirstName string `json:"first_name" example:"John"`
+	LastName  string `json:"last_name" example:"Doe"`
 }
 
 // UpdateUserRequest represents the request body for updating a user.
 type UpdateUserRequest struct {
-	Email     *string `json:"email,omitempty"`
-	FirstName *string `json:"first_name,omitempty"`
-	LastName  *string `json:"last_name,omitempty"`
+	Email     *string `json:"email,omitempty" example:"newemail@example.com"`
+	FirstName *string `json:"first_name,omitempty" example:"Jane"`
+	LastName  *string `json:"last_name,omitempty" example:"Smith"`
 }
 
-// Create handles POST /users.
+// Create godoc
+// @Summary Create a new user
+// @Description Create a new user account with email, password, and optional name
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param request body CreateUserRequest true "User registration data"
+// @Success 201 {object} service.UserResponse "Created user"
+// @Failure 400 {object} apperror.ErrorResponse "Invalid input"
+// @Failure 409 {object} apperror.ErrorResponse "Email already exists"
+// @Router /users [post]
 func (h *Handler) Create(c *gin.Context) {
 	logger := logging.FromContext(c.Request.Context())
 
@@ -153,7 +163,16 @@ func (h *Handler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, user)
 }
 
-// GetByID handles GET /users/:id.
+// GetByID godoc
+// @Summary Get user by ID
+// @Description Retrieve a user by their UUID
+// @Tags users
+// @Produce json
+// @Param id path string true "User ID (UUID)"
+// @Success 200 {object} service.UserResponse "User data"
+// @Failure 400 {object} apperror.ErrorResponse "Invalid user ID"
+// @Failure 404 {object} apperror.ErrorResponse "User not found"
+// @Router /users/{id} [get]
 func (h *Handler) GetByID(c *gin.Context) {
 	logger := logging.FromContext(c.Request.Context())
 
@@ -177,7 +196,15 @@ func (h *Handler) GetByID(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
-// List handles GET /users.
+// List godoc
+// @Summary List all users
+// @Description Retrieve a paginated list of all users
+// @Tags users
+// @Produce json
+// @Param page query int false "Page number" default(1)
+// @Param page_size query int false "Items per page" default(20)
+// @Success 200 {object} map[string]interface{} "Paginated user list"
+// @Router /users [get]
 func (h *Handler) List(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
@@ -195,7 +222,20 @@ func (h *Handler) List(c *gin.Context) {
 	})
 }
 
-// Update handles PUT /users/:id.
+// Update godoc
+// @Summary Update user
+// @Description Update user profile information (requires authentication)
+// @Tags users
+// @Accept json
+// @Produce json
+// @Security Bearer
+// @Param id path string true "User ID (UUID)"
+// @Param request body UpdateUserRequest true "Updated user data"
+// @Success 200 {object} service.UserResponse "Updated user"
+// @Failure 400 {object} apperror.ErrorResponse "Invalid input"
+// @Failure 401 {object} apperror.ErrorResponse "Unauthorized"
+// @Failure 404 {object} apperror.ErrorResponse "User not found"
+// @Router /users/{id} [put]
 func (h *Handler) Update(c *gin.Context) {
 	logger := logging.FromContext(c.Request.Context())
 
@@ -234,7 +274,16 @@ func (h *Handler) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
-// Delete handles DELETE /users/:id.
+// Delete godoc
+// @Summary Delete user
+// @Description Delete a user account (requires authentication)
+// @Tags users
+// @Security Bearer
+// @Param id path string true "User ID (UUID)"
+// @Success 204 "User deleted"
+// @Failure 401 {object} apperror.ErrorResponse "Unauthorized"
+// @Failure 404 {object} apperror.ErrorResponse "User not found"
+// @Router /users/{id} [delete]
 func (h *Handler) Delete(c *gin.Context) {
 	logger := logging.FromContext(c.Request.Context())
 

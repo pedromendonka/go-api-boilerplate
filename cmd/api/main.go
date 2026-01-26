@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"sanjow-main-api/config"
 	"sanjow-main-api/internal/database"
@@ -28,6 +29,16 @@ const (
 	appVersion     = "1.0.0"
 )
 
+// @title Sanjow Main API
+// @version 1.0.0
+// @description REST API for user authentication and management
+// @host localhost:8080
+// @BasePath /api
+// @schemes http https
+// @securityDefinitions.apikey Bearer
+// @in header
+// @name Authorization
+// @description JWT token in format: Bearer {token}
 func main() {
 	printBanner()
 
@@ -51,34 +62,45 @@ func main() {
 
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
-
-	// Initialize database connection
-	logger.Info("connecting to database")
-	dbPool, err := database.NewPool(ctx, cfg.Database.URL)
-	if err != nil {
-		logger.Error("failed to connect to database", slog.String("error", err.Error()))
-		os.Exit(1)
-	}
 	defer cancel()
-	defer database.Close(dbPool)
-	logger.Info("database connected")
 
-	// Run migrations
-	logger.Info("running migrations")
-	migrator := database.NewMigrator(dbPool, "internal/database/migrations")
-	if err := migrator.Migrate(ctx); err != nil {
-		logger.Warn("migration failed", slog.String("error", err.Error()))
+	// Initialize database connection (unless SKIP_DB is set)
+	var dbPool *pgxpool.Pool
+	var userDomain *user.Domain
+	var authDomain *auth.Domain
+
+	if cfg.SkipDB {
+		logger.Warn("SKIP_DB is set - running without database connection",
+			slog.String("note", "API endpoints requiring DB will fail"),
+		)
 	} else {
-		logger.Info("migrations completed")
+		logger.Info("connecting to database")
+		var err error
+		dbPool, err = database.NewPool(ctx, cfg.Database.URL)
+		if err != nil {
+			logger.Error("failed to connect to database", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		defer database.Close(dbPool)
+		logger.Info("database connected")
+
+		// Run migrations
+		logger.Info("running migrations")
+		migrator := database.NewMigrator(dbPool, "internal/database/migrations")
+		if err := migrator.Migrate(ctx); err != nil {
+			logger.Warn("migration failed", slog.String("error", err.Error()))
+		} else {
+			logger.Info("migrations completed")
+		}
+
+		// Initialize sqlc queries
+		queries := db.New(dbPool)
+		_ = queries
+
+		// Initialize domains
+		userDomain = user.New(dbPool, cfg.JWT.Secret)
+		authDomain = auth.New(userDomain.Repository, cfg.JWT.Secret)
 	}
-
-	// Initialize sqlc queries
-	queries := db.New(dbPool)
-	_ = queries
-
-	// Initialize domains
-	userDomain := user.New(dbPool, cfg.JWT.Secret)
-	authDomain := auth.New(userDomain.Repository, cfg.JWT.Secret)
 
 	// Initialize Gin router
 	gin.SetMode(gin.ReleaseMode)
@@ -89,6 +111,14 @@ func main() {
 
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
+		if cfg.SkipDB {
+			c.JSON(http.StatusOK, gin.H{
+				"status":   "healthy",
+				"database": "skipped",
+				"mode":     "no-db",
+			})
+			return
+		}
 		if err := dbPool.Ping(c.Request.Context()); err != nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{
 				"status": "unhealthy",
@@ -106,9 +136,13 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"message": "pong"})
 	})
 
-	// Register API routes
+	// API Documentation
+	router.GET("/docs", serveRedoc)
+	router.GET("/swagger.json", serveSwaggerJSON)
+
+	// Register API routes (only when DB is available)
 	api := router.Group("/api")
-	{
+	if !cfg.SkipDB {
 		userDomain.RegisterRoutes(api)
 		authDomain.RegisterRoutes(api)
 	}
@@ -167,4 +201,26 @@ func printBanner() {
 ╚═══════════════════════════════════════════════════════════╝`
 	fmt.Println(banner)
 	fmt.Printf("\n  %s v%s\n\n", appDisplayName, appVersion)
+}
+
+func serveRedoc(c *gin.Context) {
+	html := `<!DOCTYPE html>
+<html>
+<head>
+    <title>Sanjow API Documentation</title>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>body { margin: 0; padding: 0; }</style>
+</head>
+<body>
+    <redoc spec-url='/swagger.json'></redoc>
+    <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
+</body>
+</html>`
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	c.String(http.StatusOK, html)
+}
+
+func serveSwaggerJSON(c *gin.Context) {
+	c.File("docs/swagger.json")
 }

@@ -33,6 +33,9 @@ go.work
 # Note: Some teams prefer to commit generated code, others regenerate it
 # internal/database/db/
 
+# Generated API documentation (regenerated with make docs)
+docs/
+
 # OS files
 .DS_Store
 Thumbs.db

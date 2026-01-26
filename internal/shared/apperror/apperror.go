@@ -77,6 +77,12 @@ var (
 	ErrUnauthorized       = New(CodeUnauthorized, "unauthorized")
 )
 
+// ErrorResponse represents an API error response for Swagger documentation.
+type ErrorResponse struct {
+	Error string `json:"error" example:"user not found"`
+	Code  Code   `json:"code" example:"NOT_FOUND"`
+}
+
 // Is checks if the target error has the same Code.
 func Is(err error, code Code) bool {
 	var appErr *Error

@@ -1,4 +1,4 @@
-.PHONY: help sqlc-generate sqlc-install setup test-build db-migrate run test build tidy deps clean dev lint docker-build docker-run docker-push air-install lint-install
+.PHONY: help sqlc-generate sqlc-install setup test-build db-migrate run test build tidy deps clean dev lint docker-build docker-run docker-push air-install lint-install swag-install swag-generate docs
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -28,6 +28,21 @@ air-install: ## Install Air (hot reload) if not already installed
 
 lint-install:
 	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+
+swag-install: ## Install swag CLI for OpenAPI spec generation
+	go install github.com/swaggo/swag/cmd/swag@latest
+
+swag-generate: ## Generate OpenAPI spec from annotations
+	@if command -v swag >/dev/null 2>&1; then \
+		swag init -g cmd/api/main.go -o docs; \
+	elif [ -f ~/go/bin/swag ]; then \
+		~/go/bin/swag init -g cmd/api/main.go -o docs; \
+	else \
+		echo "swag not found. Run 'make swag-install' first"; \
+		exit 1; \
+	fi
+
+docs: swag-generate ## Generate API documentation
 
 setup: ## Install sqlc, download deps, and generate sqlc code
 	@echo "== Setup: install sqlc, download deps, sqlc generate =="
