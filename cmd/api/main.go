@@ -31,8 +31,12 @@ const (
 func main() {
 	printBanner()
 
-	// Load configuration first to get log format
-	cfg := config.Load()
+	// Load and validate configuration
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		os.Exit(1)
+	}
 
 	// Initialize structured logger
 	logCfg := logging.DefaultConfig()
@@ -44,12 +48,6 @@ func main() {
 		slog.String("app", appName),
 		slog.String("version", appVersion),
 	)
-
-	// Validate configuration
-	if err := cfg.Validate(); err != nil {
-		logger.Error("configuration error", slog.String("error", err.Error()))
-		os.Exit(1)
-	}
 
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
