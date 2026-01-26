@@ -21,7 +21,7 @@ type Domain struct {
 func New(pool *pgxpool.Pool) *Domain {
 	repo := repository.New(pool)
 	svc := service.New(repo)
-	h := handler.New(svc, repo)
+	h := handler.New(svc)
 
 	return &Domain{
 		Handler:    h,

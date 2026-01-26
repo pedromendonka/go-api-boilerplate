@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"sanjow-main-api/config"
-	"sanjow-main-api/internal/adapter"
 	"sanjow-main-api/internal/database"
 	"sanjow-main-api/internal/database/db"
 	"sanjow-main-api/internal/domain/auth"
@@ -67,11 +66,8 @@ func main() {
 	// Initialize user domain
 	userDomain := user.New(dbPool)
 
-	// Initialize auth adapter (bridges user repository to auth service)
-	userAuthAdapter := adapter.NewUserAuthAdapter(userDomain.Repository)
-
-	// Initialize auth domain
-	authDomain := auth.New(userAuthAdapter, cfg.JWT.Secret)
+	// Initialize auth domain (uses user repository directly - no circular dependency)
+	authDomain := auth.New(userDomain.Repository, cfg.JWT.Secret)
 
 	// Initialize Gin router
 	router := gin.Default()

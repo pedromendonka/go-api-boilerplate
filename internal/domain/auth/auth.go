@@ -15,8 +15,8 @@ type Domain struct {
 }
 
 // New creates a new auth domain with all its components wired together
-func New(userService service.UserService, jwtSecret string) *Domain {
-	svc := service.New(userService, jwtSecret)
+func New(userRepo service.UserRepository, jwtSecret string) *Domain {
+	svc := service.New(userRepo, jwtSecret)
 	h := handler.New(svc)
 	return &Domain{
 		Handler: h,

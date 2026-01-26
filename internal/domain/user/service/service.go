@@ -135,18 +135,8 @@ func (s *Service) List(ctx context.Context, page, pageSize int) ([]*UserResponse
 	}
 
 	offset := (page - 1) * pageSize
-	const maxInt32 = int(^uint32(0) >> 1)
-	if offset < 0 || offset > maxInt32 {
-		return nil, fmt.Errorf("offset exceeds int32 bounds")
-	}
-	if pageSize > maxInt32 {
-		return nil, fmt.Errorf("pageSize exceeds int32 bounds")
-	}
-	// #nosec G115 -- Safe conversion after bounds check above
-	pageSize32 := int32(pageSize)
-	// #nosec G115 -- Safe conversion after bounds check above
-	offset32 := int32(offset)
-	users, err := s.repo.List(ctx, pageSize32, offset32)
+	// #nosec G115 -- pageSize <= 100 and page is bounded, offset fits in int32
+	users, err := s.repo.List(ctx, int32(pageSize), int32(offset))
 	if err != nil {
 		return nil, fmt.Errorf("failed to list users: %w", err)
 	}

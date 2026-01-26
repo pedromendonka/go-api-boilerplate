@@ -8,28 +8,26 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"golang.org/x/crypto/bcrypt"
 
+	"sanjow-main-api/internal/database/db"
 	"sanjow-main-api/internal/domain/auth/service"
 )
 
-// mockUserService implements service.UserService for testing
-type mockUserService struct {
+// mockUserRepository implements service.UserRepository for testing
+type mockUserRepository struct {
 	mock.Mock
 }
 
-func (m *mockUserService) GetUserForAuth(ctx context.Context, email string) (*service.AuthUser, error) {
+func (m *mockUserRepository) GetByEmail(ctx context.Context, email string) (*db.User, error) {
 	args := m.Called(ctx, email)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*service.AuthUser), args.Error(1)
-}
-
-func (m *mockUserService) CheckPassword(passwordHash, password string) bool {
-	args := m.Called(passwordHash, password)
-	return args.Bool(0)
+	return args.Get(0).(*db.User), args.Error(1)
 }
 
 func setupTestRouter(h *Handler) *gin.Engine {
@@ -41,17 +39,20 @@ func setupTestRouter(h *Handler) *gin.Engine {
 }
 
 func TestLogin_Success(t *testing.T) {
+	// Hash the test password
+	hash, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
+
 	// Setup mock
-	mockSvc := new(mockUserService)
-	user := &service.AuthUser{
+	mockRepo := new(mockUserRepository)
+	user := &db.User{
+		ID:           uuid.New(),
 		Email:        "test@example.com",
-		PasswordHash: "$2a$10$hashedpassword",
+		PasswordHash: string(hash),
 	}
-	mockSvc.On("GetUserForAuth", mock.Anything, "test@example.com").Return(user, nil)
-	mockSvc.On("CheckPassword", user.PasswordHash, "password123").Return(true)
+	mockRepo.On("GetByEmail", mock.Anything, "test@example.com").Return(user, nil)
 
 	// Create service and handler
-	authSvc := service.New(mockSvc, "test-secret")
+	authSvc := service.New(mockRepo, "test-secret")
 	h := New(authSvc)
 	router := setupTestRouter(h)
 
@@ -70,11 +71,11 @@ func TestLogin_Success(t *testing.T) {
 
 func TestLogin_InvalidCredentials(t *testing.T) {
 	// Setup mock
-	mockSvc := new(mockUserService)
-	mockSvc.On("GetUserForAuth", mock.Anything, "wrong@example.com").Return(nil, assert.AnError)
+	mockRepo := new(mockUserRepository)
+	mockRepo.On("GetByEmail", mock.Anything, "wrong@example.com").Return(nil, assert.AnError)
 
 	// Create service and handler
-	authSvc := service.New(mockSvc, "test-secret")
+	authSvc := service.New(mockRepo, "test-secret")
 	h := New(authSvc)
 	router := setupTestRouter(h)
 
@@ -92,10 +93,10 @@ func TestLogin_InvalidCredentials(t *testing.T) {
 
 func TestLogin_InvalidRequest(t *testing.T) {
 	// Setup mock (won't be called due to validation failure)
-	mockSvc := new(mockUserService)
+	mockRepo := new(mockUserRepository)
 
 	// Create service and handler
-	authSvc := service.New(mockSvc, "test-secret")
+	authSvc := service.New(mockRepo, "test-secret")
 	h := New(authSvc)
 	router := setupTestRouter(h)
 
@@ -112,21 +113,24 @@ func TestLogin_InvalidRequest(t *testing.T) {
 }
 
 func TestLogin_WrongPassword(t *testing.T) {
+	// Hash a different password
+	hash, _ := bcrypt.GenerateFromPassword([]byte("correctpassword"), bcrypt.DefaultCost)
+
 	// Setup mock
-	mockSvc := new(mockUserService)
-	user := &service.AuthUser{
+	mockRepo := new(mockUserRepository)
+	user := &db.User{
+		ID:           uuid.New(),
 		Email:        "test@example.com",
-		PasswordHash: "$2a$10$hashedpassword",
+		PasswordHash: string(hash),
 	}
-	mockSvc.On("GetUserForAuth", mock.Anything, "test@example.com").Return(user, nil)
-	mockSvc.On("CheckPassword", user.PasswordHash, "wrongpassword").Return(false)
+	mockRepo.On("GetByEmail", mock.Anything, "test@example.com").Return(user, nil)
 
 	// Create service and handler
-	authSvc := service.New(mockSvc, "test-secret")
+	authSvc := service.New(mockRepo, "test-secret")
 	h := New(authSvc)
 	router := setupTestRouter(h)
 
-	// Make request
+	// Make request with wrong password
 	body := `{"email":"test@example.com","password":"wrongpassword"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")

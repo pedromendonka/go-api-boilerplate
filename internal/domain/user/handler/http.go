@@ -2,29 +2,25 @@
 package handler
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 
-	"sanjow-main-api/internal/domain/user/repository"
 	"sanjow-main-api/internal/domain/user/service"
 	"sanjow-main-api/internal/shared/ctx"
 	"sanjow-main-api/internal/shared/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 // Handler handles HTTP requests for users
 type Handler struct {
 	service *service.Service
-	repo    *repository.Repository
 }
 
 // New creates a new user handler
-func New(svc *service.Service, repo *repository.Repository) *Handler {
-	return &Handler{service: svc, repo: repo}
+func New(svc *service.Service) *Handler {
+	return &Handler{service: svc}
 }
 
 // RegisterRoutes registers user routes
@@ -56,9 +52,9 @@ func (h *Handler) injectCurrentUser() gin.HandlerFunc {
 			return
 		}
 
-		userObj, err := h.repo.GetByID(c.Request.Context(), uid)
+		user, err := h.service.GetByID(c.Request.Context(), uid)
 		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
+			if err == service.ErrUserNotFound {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
 				return
 			}
@@ -66,8 +62,7 @@ func (h *Handler) injectCurrentUser() gin.HandlerFunc {
 			return
 		}
 
-		// Convert to response and set in context
-		c.Set(string(ctx.CurrentUser), service.ToResponse(userObj))
+		c.Set(string(ctx.CurrentUser), user)
 		c.Next()
 	}
 }
