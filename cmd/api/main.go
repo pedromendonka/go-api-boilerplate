@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -21,6 +22,7 @@ import (
 	"sanjow-main-api/internal/domain/user"
 	"sanjow-main-api/internal/shared/logging"
 	"sanjow-main-api/internal/shared/middleware"
+	"sanjow-main-api/web"
 )
 
 const (
@@ -109,6 +111,13 @@ func main() {
 	router.Use(middleware.RequestID())
 	router.Use(middleware.Logger(logger))
 
+	// Landing page
+	router.GET("/", serveLanding)
+
+	// Static files (logo, etc.)
+	staticFS, _ := fs.Sub(web.Assets, "static")
+	router.StaticFS("/static", http.FS(staticFS))
+
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
 		if cfg.SkipDB {
@@ -132,13 +141,16 @@ func main() {
 		})
 	})
 
-	router.GET("/ping", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"message": "pong"})
-	})
-
-	// API Documentation
-	router.GET("/docs", serveRedoc)
-	router.GET("/swagger.json", serveSwaggerJSON)
+	// API Documentation (optionally protected with Basic Auth)
+	if cfg.DocsAuth.Enabled() {
+		docsAuth := middleware.BasicAuth(cfg.DocsAuth.Username, cfg.DocsAuth.Password)
+		router.GET("/docs", docsAuth, serveRedoc)
+		router.GET("/swagger.json", docsAuth, serveSwaggerJSON)
+		logger.Info("docs authentication enabled")
+	} else {
+		router.GET("/docs", serveRedoc)
+		router.GET("/swagger.json", serveSwaggerJSON)
+	}
 
 	// Register API routes (only when DB is available)
 	api := router.Group("/api")
@@ -158,9 +170,7 @@ func main() {
 
 	go func() {
 		logger.Info("server started",
-			slog.Int("port", cfg.Server.Port),
-			slog.String("health", fmt.Sprintf("http://localhost:%d/health", cfg.Server.Port)),
-			slog.String("api_base", fmt.Sprintf("http://localhost:%d/api", cfg.Server.Port)),
+			slog.String("url", fmt.Sprintf("http://localhost:%d/", cfg.Server.Port)),
 		)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("server failed", slog.String("error", err.Error()))
@@ -188,6 +198,9 @@ func main() {
 }
 
 func printBanner() {
+	const colorOrange = "\033[38;5;208m"
+	const colorReset = "\033[0m"
+
 	banner := `
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
@@ -199,8 +212,18 @@ func printBanner() {
 ║   ╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚════╝  ╚═════╝  ╚══╝╚══╝    ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝`
-	fmt.Println(banner)
+	fmt.Println(colorOrange + banner + colorReset)
 	fmt.Printf("\n  %s v%s\n\n", appDisplayName, appVersion)
+}
+
+func serveLanding(c *gin.Context) {
+	html, err := web.Assets.ReadFile("templates/landing.html")
+	if err != nil {
+		c.String(http.StatusInternalServerError, "Failed to load landing page")
+		return
+	}
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	c.String(http.StatusOK, string(html))
 }
 
 func serveRedoc(c *gin.Context) {
@@ -210,10 +233,71 @@ func serveRedoc(c *gin.Context) {
     <title>Sanjow API Documentation</title>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>body { margin: 0; padding: 0; }</style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a1a;
+        }
+        .custom-header {
+            background-color: #1a1a1a;
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            border-bottom: 1px solid #333;
+        }
+        .custom-header img {
+            height: 40px;
+            width: auto;
+        }
+        .custom-header h1 {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #FF6B00;
+            margin: 0;
+        }
+    </style>
 </head>
 <body>
-    <redoc spec-url='/swagger.json'></redoc>
+    <div class="custom-header">
+        <img src="/static/logo.png" alt="Sanjow" onerror="this.style.display='none'">
+        <h1>SANJOW API</h1>
+    </div>
+    <redoc
+        spec-url='/swagger.json'
+        theme='{
+            "colors": {
+                "primary": { "main": "#FF6B00" },
+                "text": { "primary": "#ffffff", "secondary": "#b3b3b3" },
+                "http": {
+                    "get": "#61affe",
+                    "post": "#49cc90",
+                    "put": "#fca130",
+                    "delete": "#f93e3e"
+                }
+            },
+            "typography": {
+                "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
+                "headings": { "fontFamily": "Inter, sans-serif" },
+                "code": { "fontFamily": "JetBrains Mono, Monaco, monospace" }
+            },
+            "sidebar": {
+                "backgroundColor": "#1a1a1a",
+                "textColor": "#ffffff"
+            },
+            "rightPanel": {
+                "backgroundColor": "#0d0d0d"
+            },
+            "schema": {
+                "nestedBackground": "#262626"
+            }
+        }'
+    ></redoc>
     <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
 </body>
 </html>`

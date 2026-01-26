@@ -34,8 +34,10 @@ func New(cfg Config) *slog.Logger {
 
 	switch cfg.Format {
 	case "text":
-		handler = slog.NewTextHandler(os.Stdout, opts)
+		// Use colored handler for terminal output
+		handler = NewColoredHandler(os.Stdout, opts)
 	default:
+		// Use JSON handler for production/log aggregation
 		handler = slog.NewJSONHandler(os.Stdout, opts)
 	}
 

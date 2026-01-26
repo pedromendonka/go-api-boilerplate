@@ -14,6 +14,20 @@ import (
 	"sanjow-main-api/internal/shared/logging"
 )
 
+// BasicAuth returns middleware that requires HTTP Basic Authentication.
+// Used to protect endpoints like /docs with a simple username/password.
+func BasicAuth(username, password string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		user, pass, hasAuth := c.Request.BasicAuth()
+		if !hasAuth || user != username || pass != password {
+			c.Header("WWW-Authenticate", `Basic realm="API Documentation"`)
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+		c.Next()
+	}
+}
+
 // Auth returns middleware that verifies a Bearer JWT and sets user context.
 // The secret parameter is required and must not be empty.
 func Auth(secret string) gin.HandlerFunc {

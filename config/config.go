@@ -24,7 +24,19 @@ type Config struct {
 	Database DatabaseConfig
 	JWT      JWTConfig
 	Log      LogConfig
+	DocsAuth DocsAuthConfig
 	SkipDB   bool // Skip database connection (for testing server without DB)
+}
+
+// DocsAuthConfig holds authentication config for API documentation.
+type DocsAuthConfig struct {
+	Username string
+	Password string
+}
+
+// Enabled returns true if docs authentication is configured.
+func (c DocsAuthConfig) Enabled() bool {
+	return c.Username != "" && c.Password != ""
 }
 
 // ServerConfig holds server-related configuration.
@@ -103,6 +115,10 @@ func Load() (*Config, error) {
 	port := optionalInt("SERVER_PORT", defaultPort, &errs)
 	logFormat := optional("LOG_FORMAT", defaultLogFormat)
 
+	// Docs authentication (optional)
+	docsUsername := optional("DOCS_USERNAME", "")
+	docsPassword := optional("DOCS_PASSWORD", "")
+
 	// Fail fast if required vars are missing
 	if len(errs) > 0 {
 		return nil, errs
@@ -120,6 +136,10 @@ func Load() (*Config, error) {
 		},
 		Log: LogConfig{
 			Format: logFormat,
+		},
+		DocsAuth: DocsAuthConfig{
+			Username: docsUsername,
+			Password: docsPassword,
 		},
 		SkipDB: skipDB,
 	}
