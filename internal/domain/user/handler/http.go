@@ -11,7 +11,6 @@ import (
 
 	"sanjow-main-api/internal/domain/user/service"
 	"sanjow-main-api/internal/shared/apperror"
-	"sanjow-main-api/internal/shared/ctx"
 	"sanjow-main-api/internal/shared/logging"
 	"sanjow-main-api/internal/shared/middleware"
 )
@@ -39,8 +38,8 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 		users.POST("", h.Create)
 		users.GET("", h.List)
 		users.GET(":id", h.GetByID)
-		users.PUT(":id", authMiddleware, h.injectCurrentUser(), h.Update)
-		users.DELETE(":id", authMiddleware, h.injectCurrentUser(), h.Delete)
+		users.PUT(":id", authMiddleware, h.requireUser(), h.Update)
+		users.DELETE(":id", authMiddleware, h.requireUser(), h.Delete)
 	}
 }
 
@@ -73,50 +72,39 @@ func (h *Handler) handleError(c *gin.Context, err error) {
 	})
 }
 
-// injectCurrentUser is a middleware that loads the current user from the JWT context.
-func (h *Handler) injectCurrentUser() gin.HandlerFunc {
+// requireUser is a middleware that validates the authenticated user exists.
+func (h *Handler) requireUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := logging.FromContext(c.Request.Context())
 
-		v, ok := c.Get(string(ctx.UserID))
+		userID, ok := middleware.GetUserID(c)
 		if !ok {
 			logger.Warn("missing user id in context")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "missing user id in context",
+				"error": "unauthorized",
 				"code":  apperror.CodeUnauthorized,
 			})
 			return
 		}
 
-		uid, ok := v.(uuid.UUID)
-		if !ok {
-			logger.Warn("invalid user id type in context")
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "invalid user id in context",
-				"code":  apperror.CodeUnauthorized,
-			})
-			return
-		}
-
-		user, err := h.service.GetByID(c.Request.Context(), uid)
-		if err != nil {
+		// Verify user exists in database
+		if _, err := h.service.GetByID(c.Request.Context(), userID); err != nil {
 			if apperror.Is(err, apperror.CodeNotFound) {
-				logger.Warn("user not found", slog.String("user_id", uid.String()))
+				logger.Warn("authenticated user not found", slog.String("user_id", userID.String()))
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 					"error": "user not found",
 					"code":  apperror.CodeUnauthorized,
 				})
 				return
 			}
-			logger.Error("failed to load user", slog.String("error", err.Error()))
+			logger.Error("failed to verify user", slog.String("error", err.Error()))
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-				"error": "failed to load user",
+				"error": "internal error",
 				"code":  apperror.CodeInternal,
 			})
 			return
 		}
 
-		c.Set(string(ctx.CurrentUser), user)
 		c.Next()
 	}
 }

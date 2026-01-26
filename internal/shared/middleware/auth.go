@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 
 	"sanjow-main-api/internal/shared/apperror"
-	"sanjow-main-api/internal/shared/ctx"
 	"sanjow-main-api/internal/shared/logging"
 )
 
@@ -100,9 +99,8 @@ func Auth(secret string) gin.HandlerFunc {
 			return
 		}
 
-		// Set context values
-		c.Set(string(ctx.User), claims)
-		c.Set(string(ctx.UserID), userID)
+		// Set user ID in context for downstream handlers
+		SetUserID(c, userID)
 
 		logger.Debug("auth successful", slog.String("user_id", userID.String()))
 		c.Next()

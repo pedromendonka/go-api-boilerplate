@@ -32,9 +32,8 @@ internal/
     user/               # User CRUD operations
   shared/
     apperror/           # Domain error types with HTTP mapping
-    ctx/                # Context keys
     logging/            # Structured logging with slog
-    middleware/         # HTTP middleware (auth, request logging)
+    middleware/         # HTTP middleware (auth, request logging, context helpers)
 ```
 
 ## Commands
@@ -124,8 +123,12 @@ SQL-first approach using sqlc. Edit queries in `internal/database/queries/`, the
 Protected routes use middleware chain:
 1. `middleware.RequestID()` - Add request ID
 2. `middleware.Logger()` - Log requests
-3. `middleware.Auth(secret)` - Verify JWT Bearer token (uses `sub` claim per JWT spec)
-4. `injectCurrentUser()` - Load user from context
+3. `middleware.Auth(secret)` - Verify JWT Bearer token, sets user ID via `middleware.SetUserID()`
+4. `requireUser()` - Verify authenticated user exists in database
+
+Context helpers in middleware package:
+- `middleware.SetUserID(c, id)` - Store user ID in Gin context
+- `middleware.GetUserID(c)` - Retrieve user ID from Gin context (type-safe)
 
 ### Dependency Injection
 
