@@ -31,11 +31,12 @@ const (
 func main() {
 	printBanner()
 
+	// Load configuration first to get log format
+	cfg := config.Load()
+
 	// Initialize structured logger
 	logCfg := logging.DefaultConfig()
-	if os.Getenv("LOG_FORMAT") == "text" {
-		logCfg.Format = "text"
-	}
+	logCfg.Format = cfg.Log.Format
 	logger := logging.New(logCfg)
 	slog.SetDefault(logger)
 
@@ -44,9 +45,7 @@ func main() {
 		slog.String("version", appVersion),
 	)
 
-	// Load configuration
-	cfg := config.Load()
-
+	// Validate configuration
 	if err := cfg.Validate(); err != nil {
 		logger.Error("configuration error", slog.String("error", err.Error()))
 		os.Exit(1)
@@ -118,7 +117,7 @@ func main() {
 
 	// Start server
 	srv := &http.Server{
-		Addr:         ":" + cfg.Server.Port,
+		Addr:         cfg.Server.Addr(),
 		Handler:      router,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
@@ -127,9 +126,9 @@ func main() {
 
 	go func() {
 		logger.Info("server started",
-			slog.String("port", cfg.Server.Port),
-			slog.String("health", "http://localhost:"+cfg.Server.Port+"/health"),
-			slog.String("api_base", "http://localhost:"+cfg.Server.Port+"/api"),
+			slog.Int("port", cfg.Server.Port),
+			slog.String("health", fmt.Sprintf("http://localhost:%d/health", cfg.Server.Port)),
+			slog.String("api_base", fmt.Sprintf("http://localhost:%d/api", cfg.Server.Port)),
 		)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("server failed", slog.String("error", err.Error()))
