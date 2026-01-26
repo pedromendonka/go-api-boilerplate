@@ -1,4 +1,4 @@
-# Sanjow Main API 
+# Sanjow Nova API (SNAPI) 
 # Complete PGX + SQLC Documentation
 ## PostgreSQL with pgx + sqlc
 
@@ -283,7 +283,7 @@ func (r *Repository) SearchByEmail(ctx context.Context, pattern string) ([]db.Us
 ## File Structure
 
 ```
-sanjow-main-api/
+sanjow-nova-api/
 │
 ├── 📄 Configuration Files
 │   ├── sqlc.yaml              ← sqlc configuration
@@ -686,7 +686,7 @@ package repository
 
 import (
     "context"
-    "sanjow-main-api/internal/database/db"
+    "sanjow-nova-api/internal/database/db"
     "github.com/google/uuid"
     "github.com/jackc/pgx/v5/pgxpool"
 )

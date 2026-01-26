@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"sanjow-main-api/internal/database/db"
+	"sanjow-nova-api/internal/database/db"
 )
 
 // Repository handles user data operations

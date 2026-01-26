@@ -8,9 +8,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"sanjow-main-api/internal/domain/auth/service"
-	"sanjow-main-api/internal/shared/apperror"
-	"sanjow-main-api/internal/shared/logging"
+	"sanjow-nova-api/internal/domain/auth/service"
+	"sanjow-nova-api/internal/shared/apperror"
+	"sanjow-nova-api/internal/shared/logging"
 )
 
 // Handler handles authentication HTTP requests.

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sanjow API</title>
+    <title>SNAPI - Sanjow Nova API</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
@@ -16,7 +16,7 @@
 
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background-color: #ffffff;
+            background-color: #1a1a1a;
             min-height: 100vh;
             display: flex;
             flex-direction: column;
@@ -29,15 +29,38 @@
             padding: 2rem;
         }
 
-        .title {
-            font-size: 4.5rem;
+        .branding {
+            margin-bottom: 3rem;
+        }
+
+        .logo {
+            width: 200px;
+            height: 200px;
+            object-fit: contain;
+            margin-bottom: 1.5rem;
+            filter: drop-shadow(0 0 8px rgba(255, 107, 0, 0.5));
+        }
+
+        .acronym {
+            font-size: 5.1rem;
             font-weight: 700;
+            color: #000000;
+            letter-spacing: 0.3em;
+            padding-left: 0.3em;
+            text-shadow: 0 0 10px rgba(255, 107, 0, 0.4);
+            text-align: center;
+        }
+
+        .app-name {
+            font-size: 2.5rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            padding-left: 0.05em;
             color: #FF6B00;
             text-shadow:
-                2px 2px 4px rgba(255, 107, 0, 0.3),
-                4px 4px 8px rgba(0, 0, 0, 0.1);
-            letter-spacing: 0.1em;
-            margin-bottom: 3rem;
+                2px 2px 4px rgba(0, 0, 0, 0.3),
+                1px 1px 0 rgba(0, 0, 0, 0.1);
+            text-align: center;
         }
 
         .buttons {
@@ -73,14 +96,14 @@
         }
 
         .btn-secondary {
-            background-color: #f5f5f5;
-            color: #333333;
-            border: 2px solid #e0e0e0;
+            background-color: #2a2a2a;
+            color: #ffffff;
+            border: 1px solid #444;
         }
 
         .btn-secondary:hover {
-            background-color: #eeeeee;
-            border-color: #d0d0d0;
+            background-color: #333;
+            border-color: #555;
             transform: translateY(-2px);
         }
 
@@ -90,8 +113,18 @@
         }
 
         @media (max-width: 480px) {
-            .title {
+            .logo {
+                width: 140px;
+                height: 140px;
+            }
+
+            .acronym {
                 font-size: 3rem;
+                letter-spacing: 0.25em;
+            }
+
+            .app-name {
+                font-size: 1.2rem;
             }
 
             .buttons {
@@ -109,7 +142,11 @@
 </head>
 <body>
     <div class="container">
-        <h1 class="title">SANJOW</h1>
+        <div class="branding">
+            <img src="/static/logo.png" alt="SNAPI Logo" class="logo">
+            <p class="acronym">SNAPI</p>
+            <h1 class="app-name">Sanjow Nova API</h1>
+        </div>
         <div class="buttons">
             <a href="/health" class="btn btn-secondary">
                 <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"sanjow-main-api/internal/shared/logging"
+	"sanjow-nova-api/internal/shared/logging"
 )
 
 // RequestID adds a unique request ID to each request.

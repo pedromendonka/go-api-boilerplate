@@ -7,8 +7,8 @@ import (
 	"log"
 	"time"
 
-	"sanjow-main-api/config"
-	"sanjow-main-api/internal/database"
+	"sanjow-nova-api/config"
+	"sanjow-nova-api/internal/database"
 )
 
 func main() {

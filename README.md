@@ -1,4 +1,4 @@
-# Sanjow Main API
+# Sanjow Nova API (SNAPI)
 
 A Go-based REST API using **pgx** (PostgreSQL driver) and **sqlc** (SQL code generator) for type-safe database operations.
 
@@ -23,7 +23,7 @@ A Go-based REST API using **pgx** (PostgreSQL driver) and **sqlc** (SQL code gen
 ### 1. Clone and Install Dependencies
 
 ```bash
-cd /path/to/sanjow-main-api
+cd /path/to/sanjow-nova-api
 go mod download
 ```
 

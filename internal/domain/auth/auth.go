@@ -2,8 +2,8 @@
 package auth
 
 import (
-	"sanjow-main-api/internal/domain/auth/handler"
-	"sanjow-main-api/internal/domain/auth/service"
+	"sanjow-nova-api/internal/domain/auth/handler"
+	"sanjow-nova-api/internal/domain/auth/service"
 
 	"github.com/gin-gonic/gin"
 )

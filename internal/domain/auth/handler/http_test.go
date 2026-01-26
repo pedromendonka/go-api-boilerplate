@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"golang.org/x/crypto/bcrypt"
 
-	"sanjow-main-api/internal/database/db"
-	"sanjow-main-api/internal/domain/auth/service"
+	"sanjow-nova-api/internal/database/db"
+	"sanjow-nova-api/internal/domain/auth/service"
 )
 
 // mockUserRepository implements service.UserRepository for testing

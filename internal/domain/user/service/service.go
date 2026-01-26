@@ -10,9 +10,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/bcrypt"
 
-	"sanjow-main-api/internal/database/db"
-	"sanjow-main-api/internal/domain/user/repository"
-	"sanjow-main-api/internal/shared/apperror"
+	"sanjow-nova-api/internal/database/db"
+	"sanjow-nova-api/internal/domain/user/repository"
+	"sanjow-nova-api/internal/shared/apperror"
 )
 
 // Service handles user business logic.

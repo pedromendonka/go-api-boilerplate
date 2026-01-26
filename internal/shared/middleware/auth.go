@@ -10,8 +10,8 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 
-	"sanjow-main-api/internal/shared/apperror"
-	"sanjow-main-api/internal/shared/logging"
+	"sanjow-nova-api/internal/shared/apperror"
+	"sanjow-nova-api/internal/shared/logging"
 )
 
 // BasicAuth returns middleware that requires HTTP Basic Authentication.

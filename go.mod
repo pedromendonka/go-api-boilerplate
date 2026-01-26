@@ -1,4 +1,4 @@
-module sanjow-main-api
+module sanjow-nova-api
 
 go 1.25.5
 

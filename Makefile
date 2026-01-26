@@ -98,7 +98,7 @@ lint: ## Run golangci-lint on the codebase
 	PATH="$(shell go env GOPATH)/bin:$$PATH" golangci-lint run --timeout=5m
 
 # Docker targets
-DOCKER_IMAGE ?= sanjow-main-api
+DOCKER_IMAGE ?= sanjow-nova-api
 DOCKER_TAG ?= latest
 
 docker-build: ## Build Docker image

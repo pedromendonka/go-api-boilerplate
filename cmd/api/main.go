@@ -15,23 +15,23 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"sanjow-main-api/config"
-	"sanjow-main-api/internal/database"
-	"sanjow-main-api/internal/database/db"
-	"sanjow-main-api/internal/domain/auth"
-	"sanjow-main-api/internal/domain/user"
-	"sanjow-main-api/internal/shared/logging"
-	"sanjow-main-api/internal/shared/middleware"
-	"sanjow-main-api/web"
+	"sanjow-nova-api/config"
+	"sanjow-nova-api/internal/database"
+	"sanjow-nova-api/internal/database/db"
+	"sanjow-nova-api/internal/domain/auth"
+	"sanjow-nova-api/internal/domain/user"
+	"sanjow-nova-api/internal/shared/logging"
+	"sanjow-nova-api/internal/shared/middleware"
+	"sanjow-nova-api/web"
 )
 
 const (
-	appName        = "sanjow-main-api"
-	appDisplayName = "Sanjow Main API"
+	appName        = "sanjow-nova-api"
+	appDisplayName = "Sanjow Nova API"
 	appVersion     = "1.0.0"
 )
 
-// @title Sanjow Main API
+// @title Sanjow Nova API (SNAPI)
 // @version 1.0.0
 // @description REST API for user authentication and management
 // @host localhost:8080
@@ -230,7 +230,7 @@ func serveRedoc(c *gin.Context) {
 	html := `<!DOCTYPE html>
 <html>
 <head>
-    <title>Sanjow API Documentation</title>
+    <title>SNAPI - Sanjow Nova API Documentation</title>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -265,8 +265,8 @@ func serveRedoc(c *gin.Context) {
 </head>
 <body>
     <div class="custom-header">
-        <img src="/static/logo.png" alt="Sanjow" onerror="this.style.display='none'">
-        <h1>SANJOW API</h1>
+        <img src="/static/logo.png" alt="SNAPI" onerror="this.style.display='none'">
+        <h1>SNAPI - Sanjow Nova API</h1>
     </div>
     <redoc
         spec-url='/swagger.json'

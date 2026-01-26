@@ -9,10 +9,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"sanjow-main-api/internal/domain/user/service"
-	"sanjow-main-api/internal/shared/apperror"
-	"sanjow-main-api/internal/shared/logging"
-	"sanjow-main-api/internal/shared/middleware"
+	"sanjow-nova-api/internal/domain/user/service"
+	"sanjow-nova-api/internal/shared/apperror"
+	"sanjow-nova-api/internal/shared/logging"
+	"sanjow-nova-api/internal/shared/middleware"
 )
 
 // Handler handles HTTP requests for users.

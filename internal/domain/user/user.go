@@ -2,9 +2,9 @@
 package user
 
 import (
-	"sanjow-main-api/internal/domain/user/handler"
-	"sanjow-main-api/internal/domain/user/repository"
-	"sanjow-main-api/internal/domain/user/service"
+	"sanjow-nova-api/internal/domain/user/handler"
+	"sanjow-nova-api/internal/domain/user/repository"
+	"sanjow-nova-api/internal/domain/user/service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"

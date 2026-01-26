@@ -9,9 +9,9 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/crypto/bcrypt"
 
-	"sanjow-main-api/internal/database/db"
-	"sanjow-main-api/internal/shared/apperror"
-	"sanjow-main-api/internal/shared/logging"
+	"sanjow-nova-api/internal/database/db"
+	"sanjow-nova-api/internal/shared/apperror"
+	"sanjow-nova-api/internal/shared/logging"
 )
 
 // UserRepository defines what auth needs from user domain (Go idiom: consumer defines interface).

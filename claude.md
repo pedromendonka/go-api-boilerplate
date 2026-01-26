@@ -1,4 +1,4 @@
-# Sanjow Main API
+# Sanjow Nova API (SNAPI)
 
 Go REST API backend service for user authentication and management.
 
