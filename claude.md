@@ -10,7 +10,7 @@ Go REST API backend service for user authentication and management.
 - **Code Generation:** sqlc (SQL-first, type-safe queries)
 - **Auth:** JWT (HS256)
 - **Password Hashing:** bcrypt
-- **Logging:** slog (structured JSON logging)
+- **Logging:** slog (structured logging with colored output)
 
 ## Project Structure
 
@@ -19,7 +19,7 @@ cmd/
   api/main.go           # API server entry point
   migrate/main.go       # Database migration CLI
 config/
-  config.go             # Environment configuration
+  config.go             # Environment configuration (with godotenv)
 internal/
   database/
     db/                 # Generated sqlc code (DO NOT EDIT)
@@ -32,8 +32,13 @@ internal/
     user/               # User CRUD operations
   shared/
     apperror/           # Domain error types with HTTP mapping
-    logging/            # Structured logging with slog
-    middleware/         # HTTP middleware (auth, request logging, context helpers)
+    logging/            # Colored structured logging (slog with ANSI colors)
+    middleware/         # HTTP middleware (auth, request logging, Basic Auth)
+web/
+  static/               # Static assets (logo, etc.) - embedded
+  templates/            # HTML templates (landing page) - embedded
+  embed.go              # Go embed directives
+docs/                   # Generated API documentation (swagger)
 ```
 
 ## Commands
@@ -46,16 +51,24 @@ make test           # Run tests
 make lint           # Run golangci-lint
 make sqlc-generate  # Regenerate sqlc code after SQL changes
 make db-migrate     # Run database migrations
+make docs           # Generate API documentation (swagger)
 make build          # Build binary
 ```
 
 ## Environment Variables
 
-Required in `.env`:
+The app loads `.env` and `.env.local` automatically (godotenv).
+
+Required:
 - `DATABASE_URL` - PostgreSQL connection string
-- `JWT_SECRET` - Secret for signing JWTs
-- `SERVER_PORT` - (optional, defaults to 8080)
-- `LOG_FORMAT` - (optional, "json" or "text", defaults to "json")
+- `JWT_SECRET` - Secret for signing JWTs (min 32 chars)
+
+Optional:
+- `SERVER_PORT` - Server port (default: 8080)
+- `LOG_FORMAT` - "text" (colored) or "json" (default: "json")
+- `SKIP_DB` - Set to "true" to run without database
+- `DOCS_USERNAME` - Basic Auth username for /docs
+- `DOCS_PASSWORD` - Basic Auth password for /docs
 
 ## Architecture
 
@@ -105,7 +118,11 @@ logger.Info("user created", slog.String("user_id", id))
 logger.Error("failed", slog.String("error", err.Error()))
 ```
 
-Logs are JSON-formatted for production. Request logging middleware adds request_id, method, path, latency automatically.
+Log format depends on `LOG_FORMAT`:
+- `text` - Colored output with ordered attributes (method, status, path, latency, request_id, client_ip)
+- `json` - JSON format for production/log aggregation
+
+Request logging middleware adds request_id, method, path, latency automatically.
 
 ### API Response Format
 
@@ -126,6 +143,9 @@ Protected routes use middleware chain:
 3. `middleware.Auth(secret)` - Verify JWT Bearer token, sets user ID via `middleware.SetUserID()`
 4. `requireUser()` - Verify authenticated user exists in database
 
+For docs protection:
+- `middleware.BasicAuth(username, password)` - HTTP Basic Auth for /docs endpoints
+
 Context helpers in middleware package:
 - `middleware.SetUserID(c, id)` - Store user ID in Gin context
 - `middleware.GetUserID(c)` - Retrieve user ID from Gin context (type-safe)
@@ -138,14 +158,18 @@ Constructor-based DI via `New()` functions. Go idiom: consumer defines interface
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
+| GET | `/` | No | Landing page |
 | GET | `/health` | No | Health check |
-| GET | `/ping` | No | Ping |
+| GET | `/docs` | Basic* | API documentation (Redoc dark theme) |
+| GET | `/swagger.json` | Basic* | OpenAPI spec |
 | POST | `/api/login` | No | Login → JWT |
 | POST | `/api/users` | No | Create user |
 | GET | `/api/users` | No | List users |
 | GET | `/api/users/:id` | No | Get user |
-| PUT | `/api/users/:id` | Yes | Update user |
-| DELETE | `/api/users/:id` | Yes | Delete user |
+| PUT | `/api/users/:id` | JWT | Update user |
+| DELETE | `/api/users/:id` | JWT | Delete user |
+
+*Basic Auth only if `DOCS_USERNAME` and `DOCS_PASSWORD` are set.
 
 ## Testing
 

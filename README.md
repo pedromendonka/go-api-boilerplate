@@ -33,18 +33,22 @@ go mod download
 make sqlc-install
 ```
 
-### 3. Configure Database Connection
+### 3. Configure Environment
 
-Copy `.env.example` to `.env` and set your PostgreSQL connection URL:
+Copy `.env.example` to `.env` and set your configuration:
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` with your database credentials:
+Edit `.env` with your settings:
 ```env
 DATABASE_URL=postgres://user:password@host:5432/dbname?sslmode=disable
+JWT_SECRET=your-secret-key-minimum-32-chars
+LOG_FORMAT=text  # Use "text" for colored logs, "json" for production
 ```
+
+The application automatically loads `.env` and `.env.local` files (using godotenv).
 
 ### 4. Run Migrations
 
@@ -68,11 +72,19 @@ make run
 
 The API will start on `http://localhost:8080`.
 
+Visit `http://localhost:8080/` for the landing page with links to health check and API docs.
+
 ### 7. Test the API
 
 ```bash
+# Landing page
+open http://localhost:8080/
+
 # Health check
 curl http://localhost:8080/health
+
+# API Documentation (Redoc)
+open http://localhost:8080/docs
 
 # Create a user
 curl -X POST http://localhost:8080/api/users \
@@ -126,7 +138,7 @@ This will check your code for style, bugs, and best practices using a standard s
 ├── cmd/
 │   ├── api/              # Main API application
 │   └── migrate/          # Migration runner
-├── config/               # Configuration management
+├── config/               # Configuration management (with godotenv)
 ├── internal/
 │   ├── database/
 │   │   ├── db/          # Generated sqlc code (auto-generated)
@@ -135,21 +147,17 @@ This will check your code for style, bugs, and best practices using a standard s
 │   │   ├── database.go  # Connection pool setup
 │   │   └── migrator.go  # Migration runner
 │   ├── domain/
-│   │   └── user/        # User domain
-│   │       ├── user.go       # Domain wiring
-│   │       ├── handler/      # HTTP handlers
-│   │       │   └── http.go
-│   │       ├── service/      # Business logic
-│   │       │   └── service.go
-│   │       └── repository/   # Data access
-│   │           └── postgres.go
-│   └── shared/           # Internal shared packages
-│       ├── ctx/          # Context keys
-│       ├── errors/       # Error utilities
-│       ├── logger/       # Logging
-│       ├── middleware/   # HTTP middleware (auth)
-│       ├── response/     # API response helpers
-│       └── utils/        # Utility functions
+│   │   ├── auth/        # Authentication (login, JWT)
+│   │   └── user/        # User CRUD operations
+│   └── shared/
+│       ├── apperror/    # Domain error types with HTTP mapping
+│       ├── logging/     # Colored structured logging (slog)
+│       └── middleware/  # HTTP middleware (auth, request logging)
+├── web/                  # Embedded web assets
+│   ├── static/          # Static files (logo, etc.)
+│   ├── templates/       # HTML templates (landing page)
+│   └── embed.go         # Go embed directives
+├── docs/                 # Generated API documentation (swagger)
 ├── sqlc.yaml            # sqlc configuration
 ├── Dockerfile           # Container build configuration
 ├── Makefile             # Development commands
@@ -168,6 +176,7 @@ make dev               # Run with hot reload (Air)
 make build             # Build the application
 make test              # Run tests
 make lint              # Run golangci-lint
+make docs              # Generate API documentation (swagger)
 make clean             # Clean generated files
 make docker-build      # Build Docker image
 make docker-run        # Run Docker container locally
@@ -251,26 +260,34 @@ Layer    Logic       Layer
 Copy `.env.example` to `.env` and configure:
 
 ```env
-SERVER_PORT=8080
-
-# PostgreSQL connection URL
+# Required
 DATABASE_URL=postgres://user:password@host:5432/dbname?sslmode=disable
+JWT_SECRET=your-super-secret-key-minimum-32-chars
 
-JWT_SECRET=your-super-secret-key-change-in-production
+# Optional
+SERVER_PORT=8080                    # Default: 8080
+LOG_FORMAT=text                     # "text" (colored) or "json" (production)
+SKIP_DB=true                        # Run without database connection
+DOCS_USERNAME=admin                 # Basic Auth for /docs (optional)
+DOCS_PASSWORD=secret                # Basic Auth for /docs (optional)
 ```
+
+The app automatically loads `.env` and `.env.local` files using godotenv.
 
 ## API Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/health` | Health check |
-| GET | `/ping` | Ping endpoint |
-| POST | `/api/login` | Authenticate user and get JWT |
-| POST | `/api/users` | Create user |
-| GET | `/api/users` | List users |
-| GET | `/api/users/:id` | Get user by ID |
-| PUT | `/api/users/:id` | Update user |
-| DELETE | `/api/users/:id` | Delete user |
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/` | No | Landing page |
+| GET | `/health` | No | Health check |
+| GET | `/docs` | Optional | API documentation (Redoc) |
+| GET | `/swagger.json` | Optional | OpenAPI spec |
+| POST | `/api/login` | No | Authenticate user and get JWT |
+| POST | `/api/users` | No | Create user |
+| GET | `/api/users` | No | List users |
+| GET | `/api/users/:id` | No | Get user by ID |
+| PUT | `/api/users/:id` | Yes | Update user |
+| DELETE | `/api/users/:id` | Yes | Delete user |
 
 See [Complete Documentation](PGX_SQLC_DOCUMENTATION.md) for detailed examples.
 
@@ -333,8 +350,11 @@ DOCKER_TAG=v1.0.0 DOCKER_REGISTRY=your-registry.com make docker-push
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `DATABASE_URL` | Yes | PostgreSQL connection URL |
-| `JWT_SECRET` | Yes | Secret key for JWT signing |
+| `JWT_SECRET` | Yes | Secret key for JWT signing (min 32 chars) |
 | `SERVER_PORT` | No | Server port (default: 8080) |
+| `LOG_FORMAT` | No | "json" (default) or "text" |
+| `DOCS_USERNAME` | No | Basic Auth username for /docs |
+| `DOCS_PASSWORD` | No | Basic Auth password for /docs |
 
 ## Resources
 
