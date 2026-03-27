@@ -1,187 +1,117 @@
-# Sanjow Nova API (SNAPI)
+# CLAUDE.md
 
-Go REST API backend service for user authentication and management.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Tech Stack
+## Project Overview
 
-- **Language:** Go 1.25
-- **Framework:** Gin v1.11
-- **Database:** PostgreSQL with pgx/v5
-- **Code Generation:** sqlc (SQL-first, type-safe queries)
-- **Auth:** JWT (HS256)
-- **Password Hashing:** bcrypt
-- **Logging:** slog (structured logging with colored output)
-
-## Project Structure
-
-```
-cmd/
-  api/main.go           # API server entry point
-  migrate/main.go       # Database migration CLI
-config/
-  config.go             # Environment configuration (with godotenv)
-internal/
-  database/
-    db/                 # Generated sqlc code (DO NOT EDIT)
-    migrations/         # SQL migration files
-    queries/            # SQL query definitions for sqlc
-    database.go         # Connection pool setup
-    migrator.go         # Migration runner
-  domain/
-    auth/               # Authentication (login, JWT)
-    user/               # User CRUD operations
-  shared/
-    apperror/           # Domain error types with HTTP mapping
-    logging/            # Colored structured logging (slog with ANSI colors)
-    middleware/         # HTTP middleware (auth, request logging, Basic Auth)
-web/
-  static/               # Static assets (logo, etc.) - embedded
-  templates/            # HTML templates (landing page) - embedded
-  embed.go              # Go embed directives
-docs/                   # Generated API documentation (swagger)
-```
+Sanjow Nova API (SNAPI) — Go REST API for user authentication and management. Uses Gin, PostgreSQL (pgx/v5), sqlc for type-safe queries, JWT auth (HS256), bcrypt password hashing, and slog structured logging.
 
 ## Commands
 
 ```bash
-make setup          # Install deps & generate code
-make run            # Run API server
-make dev            # Hot reload with Air
-make test           # Run tests
-make lint           # Run golangci-lint
-make sqlc-generate  # Regenerate sqlc code after SQL changes
-make db-migrate     # Run database migrations
-make docs           # Generate API documentation (swagger)
-make build          # Build binary
+make run              # Run API server
+make dev              # Hot reload with Air
+make test             # Run all tests
+make lint             # Run golangci-lint (installs if needed)
+make build            # Build binary to bin/api
+make sqlc-generate    # Regenerate code after SQL query changes
+make db-migrate       # Run database migrations
+make docs             # Generate Swagger/OpenAPI docs
+make setup            # Install deps & generate code (first-time setup)
 ```
 
-## Environment Variables
-
-The app loads `.env` and `.env.local` automatically (godotenv).
-
-Required:
-- `DATABASE_URL` - PostgreSQL connection string
-- `JWT_SECRET` - Secret for signing JWTs (min 32 chars)
-
-Optional:
-- `SERVER_PORT` - Server port (default: 8080)
-- `LOG_FORMAT` - "text" (colored) or "json" (default: "json")
-- `SKIP_DB` - Set to "true" to run without database
-- `DOCS_USERNAME` - Basic Auth username for /docs
-- `DOCS_PASSWORD` - Basic Auth password for /docs
+Single test: `go test -v -run TestFunctionName ./internal/domain/auth/handler/`
 
 ## Architecture
 
 Clean Architecture with domain-driven design:
 
 ```
-HTTP Handler → Service → Repository → Database
+cmd/api/main.go → domain.New(pool, secret) → domain.RegisterRoutes(router)
+                        ↓
+              Handler → Service → Repository → sqlc Queries → PostgreSQL
 ```
 
-- **Handlers:** HTTP request/response handling, error mapping
-- **Services:** Business logic, logging
-- **Repositories:** Data access layer
+### Domain Package Structure
 
-Each domain (auth, user) is self-contained. Cross-domain dependencies use Go interfaces defined by the consumer.
+Each domain (`auth/`, `user/`) is self-contained with the same layout:
+
+```
+internal/domain/<name>/
+  <name>.go              # Domain struct + New() wiring + RegisterRoutes()
+  handler/http.go        # Gin handlers, request/response types, Swagger annotations
+  service/service.go     # Business logic, input/response DTOs, consumer-defined interfaces
+  repository/postgres.go # Data access (sqlc queries wrapper) — user only; auth reuses user's repo
+```
+
+- **Domain root file** (`user.go`, `auth.go`) is the wiring factory — `New()` constructs all layers internally and exposes only `Domain` struct with `RegisterRoutes()`.
+- **Input/response types** live in the **service layer**, not the handler.
+- **`ToResponse()`** in service converts `db.User` → `UserResponse` (strips password hash).
+
+### Cross-Domain Dependencies
+
+Go consumer-defines-interface pattern: `auth/service` defines its own `UserRepository` interface (only needs `GetByEmail`). In `main.go`, `userDomain.Repository` (concrete) is passed to `auth.New()` and satisfies the interface implicitly.
+
+### Dependency Injection in main.go
+
+Manual, linear wiring: config → logger → db pool → migrate → `user.New(pool, secret)` → `auth.New(userDomain.Repository, secret)` → Gin setup → register routes. `SKIP_DB=true` skips all domain initialization (server runs with landing page, health, docs only).
 
 ## Key Patterns
 
 ### Error Handling
 
-Use `apperror` package for all domain errors:
+All domain errors use `apperror` package. Never return raw errors from service/handler layers.
 
 ```go
-// Return predefined errors
-return nil, apperror.ErrUserNotFound
-
-// Wrap errors with context
-return nil, apperror.Wrap(apperror.CodeInternal, "failed to create user", err)
-
-// Check error types
-if apperror.Is(err, apperror.CodeNotFound) { ... }
+return nil, apperror.ErrUserNotFound          // Sentinel errors for common cases
+return nil, apperror.Wrap(apperror.CodeInternal, "failed to create user", err)  // Wrap with context
 ```
 
-Error codes map to HTTP status:
-- `NOT_FOUND` → 404
-- `ALREADY_EXISTS` → 409
-- `INVALID_INPUT` → 400
-- `UNAUTHORIZED` → 401
-- `INTERNAL_ERROR` → 500
+Handler error pattern (same in all handlers):
+```go
+if appErr, ok := apperror.AsAppError(err); ok {
+    c.JSON(appErr.HTTPStatus(), gin.H{"error": appErr.Message, "code": appErr.Code})
+    return
+}
+c.JSON(500, gin.H{"error": "internal error", "code": apperror.CodeInternal})
+```
+
+The `Err` field (wrapped error) is for logging only — never exposed to API clients. Only `Message` and `Code` reach the response.
 
 ### Logging
 
-Use `logging` package with context propagation:
+Request-scoped logger propagation: `middleware.Logger()` creates a child logger with `request_id`, `method`, `path` and stores it in context. Retrieve with `logging.FromContext(ctx)`.
 
-```go
-logger := logging.FromContext(ctx)
-logger.Info("user created", slog.String("user_id", id))
-logger.Error("failed", slog.String("error", err.Error()))
-```
+### Database / sqlc Workflow
 
-Log format depends on `LOG_FORMAT`:
-- `text` - Colored output with ordered attributes (method, status, path, latency, request_id, client_ip)
-- `json` - JSON format for production/log aggregation
+1. Add/edit SQL in `internal/database/queries/*.sql`
+2. Run `make sqlc-generate`
+3. **Never edit** `internal/database/db/` — it's fully generated
 
-Request logging middleware adds request_id, method, path, latency automatically.
+Query annotations: `:one` (single row), `:many` (slice), `:exec` (no return). Partial updates use `COALESCE(sqlc.narg('field'), field)` pattern with `*string` nil pointers.
 
-### API Response Format
+Soft delete pattern: all queries filter `WHERE deleted_at IS NULL`. `SoftDeleteUser` sets `deleted_at = NOW()`.
 
-```json
-{"id": "...", "email": "..."}           // Success
-{"error": "message", "code": "CODE"}    // Error
-```
+UUID type override: PostgreSQL `uuid` maps to `github.com/google/uuid.UUID` (configured in `sqlc.yaml`).
 
-### Database Queries
+### Middleware Chain
 
-SQL-first approach using sqlc. Edit queries in `internal/database/queries/`, then run `make sqlc-generate`. Never edit files in `internal/database/db/` directly.
+Protected routes: `middleware.RequestID()` → `middleware.Logger()` → `middleware.Auth(secret)` → `handler.requireUser()` (verifies user still exists in DB).
 
-### Authentication
+Context helpers: `middleware.SetUserID(c, id)` / `middleware.GetUserID(c)` with typed `uuid.UUID`.
 
-Protected routes use middleware chain:
-1. `middleware.RequestID()` - Add request ID
-2. `middleware.Logger()` - Log requests
-3. `middleware.Auth(secret)` - Verify JWT Bearer token, sets user ID via `middleware.SetUserID()`
-4. `requireUser()` - Verify authenticated user exists in database
+Docs protection: `middleware.BasicAuth(username, password)` — only applied when `DOCS_USERNAME` and `DOCS_PASSWORD` are set.
 
-For docs protection:
-- `middleware.BasicAuth(username, password)` - HTTP Basic Auth for /docs endpoints
+### Testing
 
-Context helpers in middleware package:
-- `middleware.SetUserID(c, id)` - Store user ID in Gin context
-- `middleware.GetUserID(c)` - Retrieve user ID from Gin context (type-safe)
+Tests use testify (`assert`/`mock`). Hand-rolled mocks implement consumer-defined interfaces. Test pattern: create mock → wire real service with mock repo → create handler → `httptest.NewRequest` → `router.ServeHTTP` → assert status/body. Setup helper `setupTestRouter(h)` creates a Gin engine in test mode.
 
-### Dependency Injection
+Currently only handler-level tests exist (`auth/handler/http_test.go`).
 
-Constructor-based DI via `New()` functions. Go idiom: consumer defines interfaces it needs.
+## Environment
 
-## API Endpoints
+Loads `.env` and `.env.local` via godotenv. Required: `DATABASE_URL`, `JWT_SECRET` (min 32 chars). Optional: `SERVER_PORT` (default 8080), `LOG_FORMAT` ("text"/"json"), `SKIP_DB`, `DOCS_USERNAME`, `DOCS_PASSWORD`.
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/` | No | Landing page |
-| GET | `/health` | No | Health check |
-| GET | `/docs` | Basic* | API documentation (Redoc dark theme) |
-| GET | `/swagger.json` | Basic* | OpenAPI spec |
-| POST | `/api/login` | No | Login → JWT |
-| POST | `/api/users` | No | Create user |
-| GET | `/api/users` | No | List users |
-| GET | `/api/users/:id` | No | Get user |
-| PUT | `/api/users/:id` | JWT | Update user |
-| DELETE | `/api/users/:id` | JWT | Delete user |
+## Deployment
 
-*Basic Auth only if `DOCS_USERNAME` and `DOCS_PASSWORD` are set.
-
-## Testing
-
-- Use testify for assertions and mocks
-- HTTP tests with `httptest`
-- Run: `make test`
-
-## Code Style
-
-- Run `make lint` before committing
-- Follow Go naming conventions (PascalCase types, camelCase funcs)
-- Use snake_case for JSON and database fields
-- Keep packages focused on single responsibility
-- Use structured logging, not fmt.Printf
-- Always handle errors explicitly
+Multi-stage Dockerfile: builds with `golang:1.25-alpine`, runs on `alpine:3.19` as non-root user. Migrations SQL files are copied to the image (read from disk at runtime, not embedded). Web assets (`web/`) are Go-embedded in the binary.
