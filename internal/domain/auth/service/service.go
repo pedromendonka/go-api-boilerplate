@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 
 	"sanjow-nova-api/internal/database/db"

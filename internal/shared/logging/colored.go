@@ -37,12 +37,12 @@ type ColoredHandler struct {
 // NewColoredHandler creates a new colored console handler.
 func NewColoredHandler(w io.Writer, opts *slog.HandlerOptions) *ColoredHandler {
 	if opts == nil {
-		opts = &slog.HandlerOptions{}
+		opts = new(slog.HandlerOptions)
 	}
 	return &ColoredHandler{
 		opts:   *opts,
 		writer: w,
-		mu:     &sync.Mutex{},
+		mu:     new(sync.Mutex),
 	}
 }
 

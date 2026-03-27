@@ -10,6 +10,7 @@ import (
 
 	"sanjow-nova-api/internal/domain/auth/service"
 	"sanjow-nova-api/internal/shared/apperror"
+	"sanjow-nova-api/internal/shared/httputil"
 	"sanjow-nova-api/internal/shared/logging"
 )
 
@@ -39,35 +40,6 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 	router.POST("/login", h.Login)
 }
 
-// handleError handles errors consistently.
-func (h *Handler) handleError(c *gin.Context, err error) {
-	logger := logging.FromContext(c.Request.Context())
-
-	if appErr, ok := apperror.AsAppError(err); ok {
-		if appErr.Err != nil {
-			logger.Error("request failed",
-				slog.String("code", string(appErr.Code)),
-				slog.String("error", appErr.Err.Error()),
-			)
-		} else {
-			logger.Warn("request failed",
-				slog.String("code", string(appErr.Code)),
-			)
-		}
-		c.JSON(appErr.HTTPStatus(), gin.H{
-			"error": appErr.Message,
-			"code":  appErr.Code,
-		})
-		return
-	}
-
-	logger.Error("unexpected error", slog.String("error", err.Error()))
-	c.JSON(http.StatusInternalServerError, gin.H{
-		"error": "internal server error",
-		"code":  apperror.CodeInternal,
-	})
-}
-
 // Login godoc
 // @Summary User login
 // @Description Authenticate with email and password to receive a JWT token
@@ -94,7 +66,7 @@ func (h *Handler) Login(c *gin.Context) {
 
 	token, err := h.service.Authenticate(c.Request.Context(), req.Email, req.Password, 24*time.Hour)
 	if err != nil {
-		h.handleError(c, err)
+		httputil.HandleError(c, err)
 		return
 	}
 

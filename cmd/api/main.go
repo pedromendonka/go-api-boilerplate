@@ -17,7 +17,6 @@ import (
 
 	"sanjow-nova-api/config"
 	"sanjow-nova-api/internal/database"
-	"sanjow-nova-api/internal/database/db"
 	"sanjow-nova-api/internal/domain/auth"
 	"sanjow-nova-api/internal/domain/user"
 	"sanjow-nova-api/internal/shared/logging"
@@ -83,21 +82,17 @@ func main() {
 			logger.Error("failed to connect to database", slog.String("error", err.Error()))
 			os.Exit(1)
 		}
-		defer database.Close(dbPool)
+		defer database.Close(dbPool, logger)
 		logger.Info("database connected")
 
 		// Run migrations
 		logger.Info("running migrations")
-		migrator := database.NewMigrator(dbPool, "internal/database/migrations")
+		migrator := database.NewMigrator(dbPool, "internal/database/migrations", logger)
 		if err := migrator.Migrate(ctx); err != nil {
 			logger.Warn("migration failed", slog.String("error", err.Error()))
 		} else {
 			logger.Info("migrations completed")
 		}
-
-		// Initialize sqlc queries
-		queries := db.New(dbPool)
-		_ = queries
 
 		// Initialize domains
 		userDomain = user.New(dbPool, cfg.JWT.Secret)

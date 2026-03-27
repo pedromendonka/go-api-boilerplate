@@ -3,8 +3,9 @@ package database
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -13,7 +14,7 @@ import (
 // NewPool creates a new PostgreSQL connection pool using a database URL
 func NewPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 	if databaseURL == "" {
-		return nil, fmt.Errorf("DATABASE_URL is required")
+		return nil, errors.New("DATABASE_URL is required")
 	}
 
 	config, err := pgxpool.ParseConfig(databaseURL)
@@ -39,14 +40,15 @@ func NewPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	log.Println("Successfully connected to PostgreSQL database")
 	return pool, nil
 }
 
-// Close closes the database connection pool
-func Close(pool *pgxpool.Pool) {
+// Close closes the database connection pool and logs the event.
+func Close(pool *pgxpool.Pool, logger *slog.Logger) {
 	if pool != nil {
 		pool.Close()
-		log.Println("Database connection pool closed")
+		if logger != nil {
+			logger.Info("database connection pool closed")
+		}
 	}
 }

@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
 	"sanjow-nova-api/internal/shared/apperror"
@@ -64,14 +64,12 @@ func Auth(secret string) gin.HandlerFunc {
 
 		tokenStr := parts[1]
 
-		// Parse and validate token
-		token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
-			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, jwt.ErrTokenUnverifiable
-			}
+		// Parse and validate token with typed claims
+		var claims jwt.RegisteredClaims
+		token, err := jwt.ParseWithClaims(tokenStr, &claims, func(t *jwt.Token) (any, error) {
 			return secretBytes, nil
-		})
-		if err != nil || !token.Valid {
+		}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
+		if err != nil {
 			logger.Warn("auth failed: invalid token", slog.String("error", err.Error()))
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "invalid token",
@@ -79,21 +77,10 @@ func Auth(secret string) gin.HandlerFunc {
 			})
 			return
 		}
-
-		// Extract claims
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok {
-			logger.Warn("auth failed: invalid token claims")
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "invalid token claims",
-				"code":  apperror.CodeUnauthorized,
-			})
-			return
-		}
+		_ = token // claims are already populated
 
 		// Extract user ID from 'sub' claim (JWT standard)
-		sub, ok := claims["sub"].(string)
-		if !ok || sub == "" {
+		if claims.Subject == "" {
 			logger.Warn("auth failed: missing sub claim in token")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "invalid token: missing subject",
@@ -103,9 +90,9 @@ func Auth(secret string) gin.HandlerFunc {
 		}
 
 		// Parse UUID
-		userID, err := uuid.Parse(sub)
+		userID, err := uuid.Parse(claims.Subject)
 		if err != nil {
-			logger.Warn("auth failed: invalid user id format", slog.String("sub", sub))
+			logger.Warn("auth failed: invalid user id format", slog.String("sub", claims.Subject))
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "invalid token: invalid subject format",
 				"code":  apperror.CodeUnauthorized,

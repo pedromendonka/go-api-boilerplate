@@ -11,6 +11,7 @@ import (
 
 	"sanjow-nova-api/internal/domain/user/service"
 	"sanjow-nova-api/internal/shared/apperror"
+	"sanjow-nova-api/internal/shared/httputil"
 	"sanjow-nova-api/internal/shared/logging"
 	"sanjow-nova-api/internal/shared/middleware"
 )
@@ -41,35 +42,6 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 		users.PUT(":id", authMiddleware, h.requireUser(), h.Update)
 		users.DELETE(":id", authMiddleware, h.requireUser(), h.Delete)
 	}
-}
-
-// handleError handles errors consistently across all handlers.
-func (h *Handler) handleError(c *gin.Context, err error) {
-	logger := logging.FromContext(c.Request.Context())
-
-	if appErr, ok := apperror.AsAppError(err); ok {
-		if appErr.Err != nil {
-			logger.Error("request failed",
-				slog.String("code", string(appErr.Code)),
-				slog.String("error", appErr.Err.Error()),
-			)
-		} else {
-			logger.Warn("request failed",
-				slog.String("code", string(appErr.Code)),
-			)
-		}
-		c.JSON(appErr.HTTPStatus(), gin.H{
-			"error": appErr.Message,
-			"code":  appErr.Code,
-		})
-		return
-	}
-
-	logger.Error("unexpected error", slog.String("error", err.Error()))
-	c.JSON(http.StatusInternalServerError, gin.H{
-		"error": "internal server error",
-		"code":  apperror.CodeInternal,
-	})
 }
 
 // requireUser is a middleware that validates the authenticated user exists.
@@ -155,7 +127,7 @@ func (h *Handler) Create(c *gin.Context) {
 		LastName:  req.LastName,
 	})
 	if err != nil {
-		h.handleError(c, err)
+		httputil.HandleError(c, err)
 		return
 	}
 
@@ -189,7 +161,7 @@ func (h *Handler) GetByID(c *gin.Context) {
 
 	user, err := h.service.GetByID(c.Request.Context(), id)
 	if err != nil {
-		h.handleError(c, err)
+		httputil.HandleError(c, err)
 		return
 	}
 
@@ -203,7 +175,7 @@ func (h *Handler) GetByID(c *gin.Context) {
 // @Produce json
 // @Param page query int false "Page number" default(1)
 // @Param page_size query int false "Items per page" default(20)
-// @Success 200 {object} map[string]interface{} "Paginated user list"
+// @Success 200 {object} map[string]any "Paginated user list"
 // @Router /users [get]
 func (h *Handler) List(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -211,7 +183,7 @@ func (h *Handler) List(c *gin.Context) {
 
 	users, err := h.service.List(c.Request.Context(), page, pageSize)
 	if err != nil {
-		h.handleError(c, err)
+		httputil.HandleError(c, err)
 		return
 	}
 
@@ -266,7 +238,7 @@ func (h *Handler) Update(c *gin.Context) {
 		LastName:  req.LastName,
 	})
 	if err != nil {
-		h.handleError(c, err)
+		httputil.HandleError(c, err)
 		return
 	}
 
@@ -299,7 +271,7 @@ func (h *Handler) Delete(c *gin.Context) {
 	}
 
 	if err := h.service.Delete(c.Request.Context(), id); err != nil {
-		h.handleError(c, err)
+		httputil.HandleError(c, err)
 		return
 	}
 

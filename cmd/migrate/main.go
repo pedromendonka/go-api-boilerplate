@@ -4,11 +4,13 @@ package main
 import (
 	"context"
 	"flag"
-	"log"
+	"log/slog"
+	"os"
 	"time"
 
 	"sanjow-nova-api/config"
 	"sanjow-nova-api/internal/database"
+	"sanjow-nova-api/internal/shared/logging"
 )
 
 func main() {
@@ -18,26 +20,34 @@ func main() {
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("Configuration error: %v", err)
+		slog.Error("configuration error", "error", err)
+		os.Exit(1)
 	}
+
+	// Initialize structured logger
+	logCfg := logging.DefaultConfig()
+	logCfg.Format = cfg.Log.Format
+	logger := logging.New(logCfg)
+	slog.SetDefault(logger)
 
 	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	// Connect to database
 	dbPool, err := database.NewPool(ctx, cfg.Database.URL)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		logger.Error("failed to connect to database", "error", err)
+		os.Exit(1)
 	}
-	defer cancel()
-	defer database.Close(dbPool)
+	defer database.Close(dbPool, logger)
 
 	// Create migrator and run migrations
-	migrator := database.NewMigrator(dbPool, *migrationsPath)
+	migrator := database.NewMigrator(dbPool, *migrationsPath, logger)
 	if err := migrator.Migrate(ctx); err != nil {
-		log.Printf("Migration failed: %v", err)
-		return
+		logger.Error("migration failed", "error", err)
+		os.Exit(1)
 	}
 
-	log.Println("Migrations completed successfully")
+	logger.Info("migrations completed successfully")
 }

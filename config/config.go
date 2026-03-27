@@ -2,6 +2,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -208,7 +209,7 @@ func validateDatabaseURL(rawURL string) error {
 	}
 
 	if u.Host == "" {
-		return fmt.Errorf("missing host")
+		return errors.New("missing host")
 	}
 
 	return nil

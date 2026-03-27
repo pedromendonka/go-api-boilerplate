@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -15,13 +16,18 @@ import (
 type Migrator struct {
 	pool           *pgxpool.Pool
 	migrationsPath string
+	logger         *slog.Logger
 }
 
 // NewMigrator creates a new migrator instance
-func NewMigrator(pool *pgxpool.Pool, migrationsPath string) *Migrator {
+func NewMigrator(pool *pgxpool.Pool, migrationsPath string, logger *slog.Logger) *Migrator {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return &Migrator{
 		pool:           pool,
 		migrationsPath: migrationsPath,
+		logger:         logger,
 	}
 }
 
@@ -50,7 +56,7 @@ func (m *Migrator) Migrate(ctx context.Context) error {
 			if err := m.runMigration(ctx, file); err != nil {
 				return fmt.Errorf("failed to run migration %s: %w", file, err)
 			}
-			fmt.Printf("Applied migration: %s\n", file)
+			m.logger.Info("applied migration", "file", file)
 		}
 	}
 

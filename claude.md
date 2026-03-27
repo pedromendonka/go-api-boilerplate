@@ -114,4 +114,4 @@ Loads `.env` and `.env.local` via godotenv. Required: `DATABASE_URL`, `JWT_SECRE
 
 ## Deployment
 
-Multi-stage Dockerfile: builds with `golang:1.25-alpine`, runs on `alpine:3.19` as non-root user. Migrations SQL files are copied to the image (read from disk at runtime, not embedded). Web assets (`web/`) are Go-embedded in the binary.
+Multi-stage Dockerfile: builds with `golang:1.26-alpine`, runs on `alpine:3.19` as non-root user. Migrations SQL files are copied to the image (read from disk at runtime, not embedded). Web assets (`web/`) are Go-embedded in the binary.

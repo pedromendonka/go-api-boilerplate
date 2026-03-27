@@ -85,8 +85,7 @@ type ErrorResponse struct {
 
 // Is checks if the target error has the same Code.
 func Is(err error, code Code) bool {
-	var appErr *Error
-	if errors.As(err, &appErr) {
+	if appErr, ok := errors.AsType[*Error](err); ok {
 		return appErr.Code == code
 	}
 	return false
@@ -94,9 +93,5 @@ func Is(err error, code Code) bool {
 
 // AsAppError attempts to extract an *Error from err.
 func AsAppError(err error) (*Error, bool) {
-	var appErr *Error
-	if errors.As(err, &appErr) {
-		return appErr, true
-	}
-	return nil, false
+	return errors.AsType[*Error](err)
 }
