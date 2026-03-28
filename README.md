@@ -1,62 +1,65 @@
 # Sanjow Nova API (SNAPI)
 
-A Go-based REST API using **pgx** (PostgreSQL driver) and **sqlc** (SQL code generator) for type-safe database operations.
+A Go-based REST API using **Gin**, **pgx** (PostgreSQL driver), and **sqlc** (SQL code generator) for type-safe database operations. Environment management powered by **dotenvx** with encryption support.
 
-> 📖 **[Read the Complete Documentation](PGX_SQLC_DOCUMENTATION.md)** - All documentation in one file, organized for easy reading!
+> [Read the Complete Documentation](PGX_SQLC_DOCUMENTATION.md) — All documentation in one file, organized for easy reading.
 
 ## Why pgx + sqlc?
 
-- ✅ **High Performance**: pgx is faster than database/sql
-- ✅ **Type Safety**: Compile-time checked SQL queries
-- ✅ **Full SQL Control**: Write raw SQL with complete control
-- ✅ **No ORM Magic**: Explicit and predictable
-- ✅ **Easy Testing**: Test with real SQL queries
+- **High Performance**: pgx is faster than database/sql
+- **Type Safety**: Compile-time checked SQL queries
+- **Full SQL Control**: Write raw SQL with complete control
+- **No ORM Magic**: Explicit and predictable
+- **Easy Testing**: Test with real SQL queries
 
 ## Quick Start
 
 ### Prerequisites
 
-- Go 1.25+
-- PostgreSQL 14+ (external database)
-- sqlc
+- Go 1.26+
+- PostgreSQL 14+
+- [dotenvx](https://dotenvx.com) — environment management with encryption
 
-### 1. Clone and Install Dependencies
-
-```bash
-cd /path/to/sanjow-nova-api
-go mod download
-```
-
-### 2. Install sqlc
+### 1. First-Time Setup
 
 ```bash
-make sqlc-install
+make setup    # Installs dotenvx, sqlc, downloads deps, generates code
 ```
 
-### 3. Configure Environment
+### 2. Configure Environment
 
-Copy `.env.example` to `.env` and set your configuration:
+Environment variables are managed with **dotenvx** — the Go code reads only `os.Getenv()`, and dotenvx injects vars before the process starts.
+
+Env files are split by environment and concern:
+
+| File | Purpose |
+|------|---------|
+| `.env.dev.core` | Development core: DATABASE_URL, JWT_SECRET, SERVER_PORT, LOG_FORMAT, SKIP_DB |
+| `.env.dev.svcs` | Development services: DOCS_USERNAME, DOCS_PASSWORD |
+| `.env.prod.core` | Production core vars |
+| `.env.prod.svcs` | Production services vars |
+
+Set values using Makefile targets:
 
 ```bash
-cp .env.example .env
+make env-dev-core-set KEY=DATABASE_URL VAL=postgres://user:password@localhost:5432/sanjow?sslmode=disable
+make env-dev-core-set KEY=JWT_SECRET VAL=your-secret-key-minimum-32-chars
+make env-dev-core-set KEY=LOG_FORMAT VAL=text
 ```
 
-Edit `.env` with your settings:
-```env
-DATABASE_URL=postgres://user:password@host:5432/dbname?sslmode=disable
-JWT_SECRET=your-secret-key-minimum-32-chars
-LOG_FORMAT=text  # Use "text" for colored logs, "json" for production
+Verify a value:
+
+```bash
+make env-dev-core-get KEY=DATABASE_URL
 ```
 
-The application automatically loads `.env` and `.env.local` files (using godotenv).
-
-### 4. Run Migrations
+### 3. Run Migrations
 
 ```bash
 make db-migrate
 ```
 
-### 5. Generate Database Code
+### 4. Generate Database Code
 
 ```bash
 make sqlc-generate
@@ -64,22 +67,17 @@ make sqlc-generate
 
 This generates type-safe Go code in `internal/database/db/` from your SQL queries.
 
-### 6. Run the Application
+### 5. Run the Application
 
 ```bash
-make run
+make run    # Loads .env.dev.core + .env.dev.svcs via dotenvx
 ```
 
-The API will start on `http://localhost:8080`.
+The API starts on `http://localhost:8080`. Visit the landing page for links to health check and API docs.
 
-Visit `http://localhost:8080/` for the landing page with links to health check and API docs.
-
-### 7. Test the API
+### 6. Test the API
 
 ```bash
-# Landing page
-open http://localhost:8080/
-
 # Health check
 curl http://localhost:8080/health
 
@@ -97,182 +95,152 @@ curl -X POST http://localhost:8080/api/users \
   }'
 ```
 
-See [Complete Documentation](PGX_SQLC_DOCUMENTATION.md) for more examples.
-
-### 8. Run with Hot Reload (Local Development)
-
-Install [Air](https://github.com/cosmtrek/air) if you haven't already:
+### 7. Run with Hot Reload (Local Development)
 
 ```bash
-go install github.com/cosmtrek/air@latest
+make dev    # Installs Air if needed, loads dev env via dotenvx
 ```
 
-Then start the API with hot reload:
+Automatically restarts the API when Go source files change.
+
+### 8. Lint the Code
 
 ```bash
-make dev
+make lint    # Installs golangci-lint if needed
 ```
 
-This will automatically restart the API when you change Go source files (except generated code in `internal/database/db/`).
+## Available Commands
 
-### 9. Lint the Code (Required Before Commit/Push)
-
-Install [golangci-lint](https://github.com/golangci/golangci-lint) if you haven't already:
+### Development
 
 ```bash
-go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+make run               # Run API server (loads dev env via dotenvx)
+make dev               # Hot reload with Air (loads dev env via dotenvx)
+make db-migrate        # Run database migrations (loads dev env via dotenvx)
+make test              # Run all tests
+make build             # Build binary to bin/api
+make lint              # Run golangci-lint
+make tidy              # Tidy go modules
+make deps              # Download dependencies
+make clean             # Clean build artifacts
 ```
 
-Run linting before every commit or push:
+### Code Generation
 
 ```bash
-make lint
+make sqlc-generate     # Generate Go code from SQL queries
+make docs              # Generate Swagger/OpenAPI docs
 ```
 
-This will check your code for style, bugs, and best practices using a standard set of linters. Linting is also recommended in CI for team-wide code quality.
+### Environment Management (dotenvx)
+
+```bash
+# Dev core
+make env-dev-core-set  KEY=x VAL=y    # Set variable
+make env-dev-core-get  KEY=x          # Get variable
+
+# Dev services
+make env-dev-svcs-set  KEY=x VAL=y
+make env-dev-svcs-get  KEY=x
+
+# Prod core
+make env-prod-core-set KEY=x VAL=y
+make env-prod-core-get KEY=x
+
+# Prod services
+make env-prod-svcs-set KEY=x VAL=y
+make env-prod-svcs-get KEY=x
+
+# Encryption
+make env-encrypt       # Encrypt all env files (keys saved to .env.keys)
+make env-decrypt       # Decrypt all env files
+```
+
+### Tool Installation
+
+```bash
+make setup             # Full first-time setup (dotenvx, sqlc, deps, codegen)
+make dotenvx-install   # Install dotenvx CLI
+make sqlc-install      # Install sqlc
+make air-install       # Install Air (hot reload)
+make swag-install      # Install swag (OpenAPI generation)
+```
+
+### Docker
+
+```bash
+make docker-build      # Build Docker image
+make docker-run        # Run container (pass DOTENV_PRIVATE_KEY)
+make docker-push       # Push image to registry (set DOCKER_REGISTRY)
+```
 
 ## Project Structure
 
 ```
 .
 ├── cmd/
-│   ├── api/              # Main API application
-│   └── migrate/          # Migration runner
-├── config/               # Configuration management (with godotenv)
+│   ├── api/                # Main API application
+│   └── migrate/            # Migration runner
+├── config/                 # Configuration (reads os.Getenv, no dotenv library)
 ├── internal/
 │   ├── database/
-│   │   ├── db/          # Generated sqlc code (auto-generated)
-│   │   ├── migrations/  # SQL migration files
-│   │   ├── queries/     # SQL query definitions
-│   │   ├── database.go  # Connection pool setup
-│   │   └── migrator.go  # Migration runner
+│   │   ├── db/             # Generated sqlc code (auto-generated)
+│   │   ├── migrations/     # SQL migration files
+│   │   ├── queries/        # SQL query definitions
+│   │   ├── database.go     # Connection pool setup
+│   │   └── migrator.go     # Migration runner
 │   ├── domain/
-│   │   ├── auth/        # Authentication (login, JWT)
-│   │   └── user/        # User CRUD operations
+│   │   ├── auth/           # Authentication (login, JWT)
+│   │   └── user/           # User CRUD operations
 │   └── shared/
-│       ├── apperror/    # Domain error types with HTTP mapping
-│       ├── logging/     # Colored structured logging (slog)
-│       └── middleware/  # HTTP middleware (auth, request logging)
-├── web/                  # Embedded web assets
-│   ├── static/          # Static files (logo, etc.)
-│   ├── templates/       # HTML templates (landing page)
-│   └── embed.go         # Go embed directives
-├── docs/                 # Generated API documentation (swagger)
-├── sqlc.yaml            # sqlc configuration
-├── Dockerfile           # Container build configuration
-├── Makefile             # Development commands
+│       ├── apperror/       # Domain error types with HTTP mapping
+│       ├── httputil/       # Shared HTTP utilities (HandleError)
+│       ├── logging/        # Colored structured logging (slog)
+│       └── middleware/     # HTTP middleware (auth, request logging)
+├── web/                    # Embedded web assets
+│   ├── static/             # Static files (logo, etc.)
+│   ├── templates/          # HTML templates (landing page)
+│   └── embed.go            # Go embed directives
+├── docs/                   # Generated API documentation (swagger)
+├── .env.dev.core           # Dev core env vars (gitignored)
+├── .env.dev.svcs           # Dev services env vars (gitignored)
+├── .env.prod.core          # Prod core env vars (gitignored / encrypted)
+├── .env.prod.svcs          # Prod services env vars (gitignored / encrypted)
+├── sqlc.yaml               # sqlc configuration
+├── Dockerfile              # Container build (with dotenvx)
+├── Makefile                # Development commands
 └── README.md
 ```
 
-## Available Commands
-
-```bash
-make help              # Show all available commands
-make setup             # Install sqlc, download deps, generate sqlc code
-make sqlc-generate     # Generate Go code from SQL
-make db-migrate        # Run database migrations
-make run               # Run the application
-make dev               # Run with hot reload (Air)
-make build             # Build the application
-make test              # Run tests
-make lint              # Run golangci-lint
-make docs              # Generate API documentation (swagger)
-make clean             # Clean generated files
-make docker-build      # Build Docker image
-make docker-run        # Run Docker container locally
-make docker-push       # Push image to registry
-```
-
-## Database Layer
-
-### 1. Define Schema (Migrations)
-
-Create SQL files in `internal/database/migrations/`:
-
-```text
--- internal/database/migrations/002_add_posts.sql
-CREATE TABLE posts (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id),
-    title VARCHAR(255) NOT NULL,
-    content TEXT,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
-```
-
-### 2. Write Queries
-
-Create query files in `internal/database/queries/`:
-
-```text
--- internal/database/queries/posts.sql
-
--- name: CreatePost :one
-INSERT INTO posts (user_id, title, content)
-VALUES ($1, $2, $3)
-RETURNING *;
-
--- name: GetPostByID :one
-SELECT * FROM posts WHERE id = $1;
-
--- name: ListPostsByUser :many
-SELECT * FROM posts WHERE user_id = $1 ORDER BY created_at DESC;
-```
-
-### 3. Generate Code
-
-```bash
-make sqlc-generate
-```
-
-### 4. Use in Your Application
-
-```text
-// In your repository
-queries := db.New(dbPool)
-
-post, err := queries.CreatePost(ctx, db.CreatePostParams{
-    UserID:  userID,
-    Title:   "My Post",
-    Content: "Post content here",
-})
-```
-
-## Architecture Pattern
-
-This project follows Clean Architecture / Domain-Driven Design:
-
-```
-Handler → Service → Repository → Database
-  ↓         ↓          ↓
-HTTP    Business    Data Access
-Layer    Logic       Layer
-```
-
-**Example Flow**:
-1. **Handler** receives HTTP request, validates input
-2. **Service** contains business logic, orchestrates operations
-3. **Repository** wraps sqlc queries, handles data access
-4. **Generated Code** (sqlc) provides type-safe database operations
-
 ## Environment Variables
 
-Copy `.env.example` to `.env` and configure:
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `DATABASE_URL` | Yes | — | PostgreSQL connection URL |
+| `JWT_SECRET` | Yes | — | Secret key for JWT signing (min 32 chars) |
+| `SERVER_PORT` | No | 8080 | HTTP server port |
+| `LOG_FORMAT` | No | json | `"text"` (colored) or `"json"` (production) |
+| `SKIP_DB` | No | false | Run without database connection |
+| `DOCS_USERNAME` | No | — | Basic Auth username for /docs |
+| `DOCS_PASSWORD` | No | — | Basic Auth password for /docs |
 
-```env
-# Required
-DATABASE_URL=postgres://user:password@host:5432/dbname?sslmode=disable
-JWT_SECRET=your-super-secret-key-minimum-32-chars
+### Encryption Workflow
 
-# Optional
-SERVER_PORT=8080                    # Default: 8080
-LOG_FORMAT=text                     # "text" (colored) or "json" (production)
-SKIP_DB=true                        # Run without database connection
-DOCS_USERNAME=admin                 # Basic Auth for /docs (optional)
-DOCS_PASSWORD=secret                # Basic Auth for /docs (optional)
+dotenvx encrypts env files so they can be safely committed to git:
+
+```bash
+# 1. Set your variables
+make env-prod-core-set KEY=DATABASE_URL VAL=postgres://prod-host:5432/sanjow
+
+# 2. Encrypt all files (private keys saved to .env.keys, gitignored)
+make env-encrypt
+
+# 3. Commit the encrypted env files
+git add .env.prod.core .env.prod.svcs
+
+# 4. At runtime, pass the private key to decrypt
+DOTENV_PRIVATE_KEY=your-key make docker-run
 ```
-
-The app automatically loads `.env` and `.env.local` files using godotenv.
 
 ## API Endpoints
 
@@ -289,7 +257,69 @@ The app automatically loads `.env` and `.env.local` files using godotenv.
 | PUT | `/api/users/:id` | Yes | Update user |
 | DELETE | `/api/users/:id` | Yes | Delete user |
 
-See [Complete Documentation](PGX_SQLC_DOCUMENTATION.md) for detailed examples.
+## Database Layer
+
+### 1. Define Schema (Migrations)
+
+Create SQL files in `internal/database/migrations/`:
+
+```sql
+-- internal/database/migrations/002_add_posts.sql
+CREATE TABLE posts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id),
+    title VARCHAR(255) NOT NULL,
+    content TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+```
+
+### 2. Write Queries
+
+Create query files in `internal/database/queries/`:
+
+```sql
+-- internal/database/queries/posts.sql
+
+-- name: CreatePost :one
+INSERT INTO posts (user_id, title, content)
+VALUES ($1, $2, $3)
+RETURNING *;
+
+-- name: GetPostByID :one
+SELECT * FROM posts WHERE id = $1;
+
+-- name: ListPostsByUser :many
+SELECT * FROM posts WHERE user_id = $1 ORDER BY created_at DESC;
+```
+
+### 3. Generate and Use
+
+```bash
+make sqlc-generate
+```
+
+```go
+queries := db.New(dbPool)
+post, err := queries.CreatePost(ctx, db.CreatePostParams{
+    UserID:  userID,
+    Title:   "My Post",
+    Content: "Post content here",
+})
+```
+
+## Architecture
+
+Clean Architecture with domain-driven design:
+
+```
+Handler → Service → Repository → sqlc Queries → PostgreSQL
+  ↓         ↓          ↓
+HTTP    Business    Data Access
+Layer    Logic       Layer
+```
+
+Each domain (`auth/`, `user/`) is self-contained with handler, service, and repository layers. Cross-domain dependencies use Go's consumer-defines-interface pattern.
 
 ## Development Workflow
 
@@ -301,69 +331,43 @@ See [Complete Documentation](PGX_SQLC_DOCUMENTATION.md) for detailed examples.
    - Wire up in `cmd/api/main.go`
 
 2. **Test locally**:
-   - Configure `DATABASE_URL` in `.env`
-   - `make db-migrate` - Run migrations
-   - `make sqlc-generate` - Generate code
-   - `make run` - Start API
-   - Test with curl or Postman
+   - Configure env: `make env-dev-core-set KEY=... VAL=...`
+   - `make db-migrate` — Run migrations
+   - `make sqlc-generate` — Generate code
+   - `make run` — Start API
 
 3. **Before committing**:
-   - `make lint` - Run linter
-   - `make test` - Run tests
-   - `make build` - Verify build
+   - `make lint` — Run linter
+   - `make test` — Run tests
+   - `make build` — Verify build
 
 ## Deployment
 
-### Build Docker Image
+### Docker
+
+The Dockerfile produces a minimal Alpine-based image with dotenvx installed:
 
 ```bash
+# Build
 make docker-build
-```
 
-This creates a minimal Alpine-based image (~20MB) with:
-- Multi-stage build for small image size
-- Non-root user for security
-- Health check endpoint configured
-- Migrations included
+# Run (pass private key to decrypt encrypted env files)
+DOTENV_PRIVATE_KEY="your-key" make docker-run
 
-### Run with Docker
-
-```bash
-# Set environment variables and run
-DATABASE_URL="postgres://user:pass@host:5432/db" \
-JWT_SECRET="your-secret" \
-make docker-run
-```
-
-### Push to Registry
-
-```bash
-# Push to a container registry
-DOCKER_REGISTRY=your-registry.com make docker-push
-
-# Or with custom tag
+# Push to registry
 DOCKER_TAG=v1.0.0 DOCKER_REGISTRY=your-registry.com make docker-push
 ```
 
-### Environment Variables for Production
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | Yes | PostgreSQL connection URL |
-| `JWT_SECRET` | Yes | Secret key for JWT signing (min 32 chars) |
-| `SERVER_PORT` | No | Server port (default: 8080) |
-| `LOG_FORMAT` | No | "json" (default) or "text" |
-| `DOCS_USERNAME` | No | Basic Auth username for /docs |
-| `DOCS_PASSWORD` | No | Basic Auth password for /docs |
+The image includes encrypted `.env.prod.*` files. At runtime, `DOTENV_PRIVATE_KEY` is used by dotenvx to decrypt them before starting the API.
 
 ## Resources
 
-- 📖 **[Complete Documentation](PGX_SQLC_DOCUMENTATION.md)**
-- 📚 [pgx Documentation](https://github.com/jackc/pgx)
-- 📚 [sqlc Documentation](https://docs.sqlc.dev/)
-- 📚 [PostgreSQL Docs](https://www.postgresql.org/docs/)
+- [Complete Documentation](PGX_SQLC_DOCUMENTATION.md)
+- [pgx Documentation](https://github.com/jackc/pgx)
+- [sqlc Documentation](https://docs.sqlc.dev/)
+- [dotenvx Documentation](https://dotenvx.com/docs)
+- [PostgreSQL Docs](https://www.postgresql.org/docs/)
 
 ## License
 
 MIT
-

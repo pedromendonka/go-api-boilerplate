@@ -8,8 +8,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-
-	"github.com/joho/godotenv"
 )
 
 // Default configuration values.
@@ -92,11 +90,9 @@ func (ve ValidationErrors) Error() string {
 }
 
 // Load loads and validates configuration from environment variables.
-// It loads .env and .env.local files if present (env vars take precedence).
+// Environment variables must be injected externally (e.g., via dotenvx run).
 // Returns an error if required variables are missing or invalid.
 func Load() (*Config, error) {
-	loadEnvFiles()
-
 	var errs ValidationErrors
 
 	// Check if we should skip database (for testing without DB)
@@ -274,13 +270,3 @@ func optionalBool(key string, defaultValue bool) bool {
 	return value == "true" || value == "1" || value == "yes"
 }
 
-// loadEnvFiles loads environment variables from .env files.
-// Files are loaded in order: .env, then .env.local (for local overrides).
-// Existing environment variables are NOT overwritten (real env vars take precedence).
-func loadEnvFiles() {
-	// Load .env first (base development config)
-	_ = godotenv.Load(".env")
-
-	// Load .env.local second (personal overrides, takes precedence over .env)
-	_ = godotenv.Load(".env.local")
-}

@@ -18,9 +18,17 @@ vendor/
 # Go workspace file
 go.work
 
-# Environment files
+# Environment files (dotenvx)
+# Dev env files are always gitignored. Prod env files should be committed after
+# encrypting with `make env-encrypt`. Private keys are always gitignored.
 .env
 .env.local
+.env.dev.core
+.env.dev.svcs
+.env.keys
+
+# Claude Code
+.claude/
 
 # IDE
 .idea/

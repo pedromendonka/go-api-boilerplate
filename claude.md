@@ -9,15 +9,29 @@ Sanjow Nova API (SNAPI) — Go REST API for user authentication and management. 
 ## Commands
 
 ```bash
-make run              # Run API server
-make dev              # Hot reload with Air
+make run              # Run API server (loads dev env via dotenvx)
+make dev              # Hot reload with Air (loads dev env via dotenvx)
 make test             # Run all tests
 make lint             # Run golangci-lint (installs if needed)
 make build            # Build binary to bin/api
 make sqlc-generate    # Regenerate code after SQL query changes
-make db-migrate       # Run database migrations
+make db-migrate       # Run database migrations (loads dev env via dotenvx)
 make docs             # Generate Swagger/OpenAPI docs
 make setup            # Install deps & generate code (first-time setup)
+```
+
+Environment management (dotenvx):
+```bash
+make env-dev-core-set  KEY=x VAL=y   # Set var in .env.dev.core
+make env-dev-core-get  KEY=x         # Get var from .env.dev.core
+make env-dev-svcs-set  KEY=x VAL=y   # Set var in .env.dev.svcs
+make env-dev-svcs-get  KEY=x         # Get var from .env.dev.svcs
+make env-prod-core-set KEY=x VAL=y   # Set var in .env.prod.core
+make env-prod-core-get KEY=x         # Get var from .env.prod.core
+make env-prod-svcs-set KEY=x VAL=y   # Set var in .env.prod.svcs
+make env-prod-svcs-get KEY=x         # Get var from .env.prod.svcs
+make env-encrypt                     # Encrypt all env files
+make env-decrypt                     # Decrypt all env files
 ```
 
 Single test: `go test -v -run TestFunctionName ./internal/domain/auth/handler/`
@@ -67,13 +81,9 @@ return nil, apperror.ErrUserNotFound          // Sentinel errors for common case
 return nil, apperror.Wrap(apperror.CodeInternal, "failed to create user", err)  // Wrap with context
 ```
 
-Handler error pattern (same in all handlers):
+Handler error pattern — use the shared `httputil.HandleError`:
 ```go
-if appErr, ok := apperror.AsAppError(err); ok {
-    c.JSON(appErr.HTTPStatus(), gin.H{"error": appErr.Message, "code": appErr.Code})
-    return
-}
-c.JSON(500, gin.H{"error": "internal error", "code": apperror.CodeInternal})
+httputil.HandleError(c, err)  // logs + returns JSON with correct HTTP status
 ```
 
 The `Err` field (wrapped error) is for logging only — never exposed to API clients. Only `Message` and `Code` reach the response.
@@ -110,8 +120,18 @@ Currently only handler-level tests exist (`auth/handler/http_test.go`).
 
 ## Environment
 
-Loads `.env` and `.env.local` via godotenv. Required: `DATABASE_URL`, `JWT_SECRET` (min 32 chars). Optional: `SERVER_PORT` (default 8080), `LOG_FORMAT` ("text"/"json"), `SKIP_DB`, `DOCS_USERNAME`, `DOCS_PASSWORD`.
+Environment variables are injected externally via [dotenvx](https://dotenvx.com) — the Go code reads only `os.Getenv()`.
+
+Env files (split by environment and concern):
+- `.env.dev.core` — DATABASE_URL, JWT_SECRET, SERVER_PORT, LOG_FORMAT, SKIP_DB
+- `.env.dev.svcs` — DOCS_USERNAME, DOCS_PASSWORD
+- `.env.prod.core` — production core vars
+- `.env.prod.svcs` — production services vars
+
+Dev env files are gitignored. Prod env files should be committed after encrypting with `make env-encrypt` (private keys stored in `.env.keys`, gitignored).
+
+Required vars: `DATABASE_URL`, `JWT_SECRET` (min 32 chars). Optional: `SERVER_PORT` (default 8080), `LOG_FORMAT` ("text"/"json"), `SKIP_DB`, `DOCS_USERNAME`, `DOCS_PASSWORD`.
 
 ## Deployment
 
-Multi-stage Dockerfile: builds with `golang:1.26-alpine`, runs on `alpine:3.19` as non-root user. Migrations SQL files are copied to the image (read from disk at runtime, not embedded). Web assets (`web/`) are Go-embedded in the binary.
+Multi-stage Dockerfile: builds with `golang:1.26-alpine`, runs on `alpine:3.21` as non-root user with dotenvx (pinned version) installed. Encrypted `.env.prod.*` files are copied into the image; at runtime, pass `DOTENV_PRIVATE_KEY` to decrypt. Migrations SQL files are copied to the image (read from disk at runtime, not embedded). Web assets (`web/`) are Go-embedded in the binary.
