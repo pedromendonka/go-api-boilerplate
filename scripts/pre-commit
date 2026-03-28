@@ -1,0 +1,45 @@
+#!/bin/sh
+#
+# Pre-commit hook: block commits containing unencrypted .env files.
+# dotenvx-encrypted files have all values prefixed with "encrypted:".
+# A file with DOTENV_PUBLIC_KEY but plaintext values is NOT considered encrypted.
+# Install with: make hooks-install (runs automatically via make setup)
+
+set -e
+
+# List staged .env* files, skipping deletions
+ENV_FILES=$(git diff --cached --name-only --diff-filter=d | grep '\.env' || true)
+
+if [ -z "$ENV_FILES" ]; then
+    exit 0
+fi
+
+FAILED=""
+
+for file in $ENV_FILES; do
+    CONTENT=$(git show ":${file}" 2>/dev/null) || continue
+
+    # Extract KEY=value assignment lines, ignoring comments and DOTENV_PUBLIC_KEY* lines
+    VALUE_LINES=$(echo "$CONTENT" | grep -E '^[A-Za-z_][A-Za-z0-9_]*=' | grep -v '^DOTENV_PUBLIC_KEY' || true)
+
+    if [ -z "$VALUE_LINES" ]; then
+        # No value assignments (empty file or only comments/public keys) — allow
+        continue
+    fi
+
+    # Fail if any non-empty value lacks the "encrypted:" prefix
+    PLAINTEXT=$(echo "$VALUE_LINES" | grep -v '="encrypted:' | grep -v '=""' || true)
+
+    if [ -n "$PLAINTEXT" ]; then
+        FAILED="${FAILED}\n  - ${file}"
+    fi
+done
+
+if [ -n "$FAILED" ]; then
+    echo ""
+    echo "ERROR: Unencrypted env files detected in commit:${FAILED}"
+    echo ""
+    echo "Run 'make env-encrypt' before committing, then 'git add' the encrypted files."
+    echo ""
+    exit 1
+fi

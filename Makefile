@@ -2,7 +2,7 @@
 	docker-build docker-run docker-push air-install lint-install swag-install swag-generate docs dotenvx-install \
 	env-prod-core-set env-prod-core-get env-prod-svcs-set env-prod-svcs-get \
 	env-dev-core-set env-dev-core-get env-dev-svcs-set env-dev-svcs-get \
-	env-encrypt env-decrypt
+	env-encrypt env-decrypt hooks-install
 
 # dotenvx env files loaded for local development
 DOTENVX_DEV = dotenvx run -f .env.dev.core -f .env.dev.svcs --
@@ -151,8 +151,14 @@ lint-install:
 swag-install: ## Install swag CLI for OpenAPI spec generation
 	go install github.com/swaggo/swag/cmd/swag@latest
 
+hooks-install: ## Install git hooks (pre-commit env encryption guard)
+	@cp scripts/pre-commit .git/hooks/pre-commit
+	@chmod +x .git/hooks/pre-commit
+	@echo "Git hooks installed."
+
 setup: ## First-time setup: install tools, download deps, generate code
 	@echo "== Setup: install tools, download deps, generate code =="
+	@$(MAKE) hooks-install
 	@$(MAKE) dotenvx-install
 	@if ! command -v sqlc >/dev/null 2>&1; then \
 		$(MAKE) sqlc-install; \
