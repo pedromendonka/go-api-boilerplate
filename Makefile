@@ -5,7 +5,7 @@
 	env-encrypt env-decrypt hooks-install
 
 # dotenvx env files loaded for local development
-DOTENVX_DEV = dotenvx run -f .env.dev.core -f .env.dev.svcs --
+DOTENVX_DEV = dotenvx run -f .env.dev.core -f .env.dev.svcs -fk .env.dev.keys --
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -81,48 +81,48 @@ swag-generate: ## Generate OpenAPI spec from annotations
 
 env-dev-core-set: ## Set var in .env.dev.core (KEY=x VAL=y)
 	@test -n "$(KEY)" || (echo "Usage: make env-dev-core-set KEY=x VAL=y"; exit 1)
-	@dotenvx set $(KEY) "$(VAL)" -f .env.dev.core
+	@dotenvx set $(KEY) "$(VAL)" -f .env.dev.core -fk .env.dev.keys
 
 env-dev-core-get: ## Get var from .env.dev.core (KEY=x)
 	@test -n "$(KEY)" || (echo "Usage: make env-dev-core-get KEY=x"; exit 1)
-	@dotenvx get $(KEY) -f .env.dev.core
+	@dotenvx get $(KEY) -f .env.dev.core -fk .env.dev.keys
 
 env-dev-svcs-set: ## Set var in .env.dev.svcs (KEY=x VAL=y)
 	@test -n "$(KEY)" || (echo "Usage: make env-dev-svcs-set KEY=x VAL=y"; exit 1)
-	@dotenvx set $(KEY) "$(VAL)" -f .env.dev.svcs
+	@dotenvx set $(KEY) "$(VAL)" -f .env.dev.svcs -fk .env.dev.keys
 
 env-dev-svcs-get: ## Get var from .env.dev.svcs (KEY=x)
 	@test -n "$(KEY)" || (echo "Usage: make env-dev-svcs-get KEY=x"; exit 1)
-	@dotenvx get $(KEY) -f .env.dev.svcs
+	@dotenvx get $(KEY) -f .env.dev.svcs -fk .env.dev.keys
 
 env-prod-core-set: ## Set var in .env.prod.core (KEY=x VAL=y)
 	@test -n "$(KEY)" || (echo "Usage: make env-prod-core-set KEY=x VAL=y"; exit 1)
-	@dotenvx set $(KEY) "$(VAL)" -f .env.prod.core
+	@dotenvx set $(KEY) "$(VAL)" -f .env.prod.core -fk .env.prod.keys
 
 env-prod-core-get: ## Get var from .env.prod.core (KEY=x)
 	@test -n "$(KEY)" || (echo "Usage: make env-prod-core-get KEY=x"; exit 1)
-	@dotenvx get $(KEY) -f .env.prod.core
+	@dotenvx get $(KEY) -f .env.prod.core -fk .env.prod.keys
 
 env-prod-svcs-set: ## Set var in .env.prod.svcs (KEY=x VAL=y)
 	@test -n "$(KEY)" || (echo "Usage: make env-prod-svcs-set KEY=x VAL=y"; exit 1)
-	@dotenvx set $(KEY) "$(VAL)" -f .env.prod.svcs
+	@dotenvx set $(KEY) "$(VAL)" -f .env.prod.svcs -fk .env.prod.keys
 
 env-prod-svcs-get: ## Get var from .env.prod.svcs (KEY=x)
 	@test -n "$(KEY)" || (echo "Usage: make env-prod-svcs-get KEY=x"; exit 1)
-	@dotenvx get $(KEY) -f .env.prod.svcs
+	@dotenvx get $(KEY) -f .env.prod.svcs -fk .env.prod.keys
 
 env-encrypt: ## Encrypt all env files with dotenvx
-	@[ -f .env.dev.core ] && dotenvx encrypt -f .env.dev.core || echo "Skipping .env.dev.core (not found)"
-	@[ -f .env.dev.svcs ] && dotenvx encrypt -f .env.dev.svcs || echo "Skipping .env.dev.svcs (not found)"
-	@[ -f .env.prod.core ] && dotenvx encrypt -f .env.prod.core || echo "Skipping .env.prod.core (not found)"
-	@[ -f .env.prod.svcs ] && dotenvx encrypt -f .env.prod.svcs || echo "Skipping .env.prod.svcs (not found)"
-	@echo "Done. Private keys saved to .env.keys (gitignored)."
+	@[ -f .env.dev.core ] && dotenvx encrypt -f .env.dev.core -fk .env.dev.keys || echo "Skipping .env.dev.core (not found)"
+	@[ -f .env.dev.svcs ] && dotenvx encrypt -f .env.dev.svcs -fk .env.dev.keys || echo "Skipping .env.dev.svcs (not found)"
+	@[ -f .env.prod.core ] && dotenvx encrypt -f .env.prod.core -fk .env.prod.keys || echo "Skipping .env.prod.core (not found)"
+	@[ -f .env.prod.svcs ] && dotenvx encrypt -f .env.prod.svcs -fk .env.prod.keys || echo "Skipping .env.prod.svcs (not found)"
+	@echo "Done. Private keys saved to .env.dev.keys / .env.prod.keys (gitignored)."
 
 env-decrypt: ## Decrypt all env files with dotenvx
-	@[ -f .env.dev.core ] && dotenvx decrypt -f .env.dev.core || echo "Skipping .env.dev.core (not found)"
-	@[ -f .env.dev.svcs ] && dotenvx decrypt -f .env.dev.svcs || echo "Skipping .env.dev.svcs (not found)"
-	@[ -f .env.prod.core ] && dotenvx decrypt -f .env.prod.core || echo "Skipping .env.prod.core (not found)"
-	@[ -f .env.prod.svcs ] && dotenvx decrypt -f .env.prod.svcs || echo "Skipping .env.prod.svcs (not found)"
+	@[ -f .env.dev.core ] && dotenvx decrypt -f .env.dev.core -fk .env.dev.keys || echo "Skipping .env.dev.core (not found)"
+	@[ -f .env.dev.svcs ] && dotenvx decrypt -f .env.dev.svcs -fk .env.dev.keys || echo "Skipping .env.dev.svcs (not found)"
+	@[ -f .env.prod.core ] && dotenvx decrypt -f .env.prod.core -fk .env.prod.keys || echo "Skipping .env.prod.core (not found)"
+	@[ -f .env.prod.svcs ] && dotenvx decrypt -f .env.prod.svcs -fk .env.prod.keys || echo "Skipping .env.prod.svcs (not found)"
 
 # =============================================================================
 # Install tools

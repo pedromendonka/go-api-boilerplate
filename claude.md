@@ -128,9 +128,9 @@ Env files (split by environment and concern):
 - `.env.prod.core` — production core vars
 - `.env.prod.svcs` — production services vars
 
-Dev env files are gitignored. Prod env files should be committed after encrypting with `make env-encrypt` (private keys stored in `.env.keys`, gitignored).
+All env files are committed after encrypting with `make env-encrypt`. Private keys are split per environment: `.env.dev.keys` and `.env.prod.keys` (both gitignored).
 
-A pre-commit hook (`scripts/pre-commit`) blocks commits containing unencrypted `.env` files. It checks staged content for dotenvx encryption markers (`DOTENV_PUBLIC_KEY` or `encrypted:` prefixes). Install with `make hooks-install` (runs automatically via `make setup`).
+A pre-commit hook (`scripts/pre-commit`) blocks commits containing unencrypted `.env` files. It checks staged content for `encrypted:` value prefixes. Install with `make hooks-install` (runs automatically via `make setup`).
 
 Required vars: `DATABASE_URL`, `JWT_SECRET` (min 32 chars). Optional: `SERVER_PORT` (default 8080), `LOG_FORMAT` ("text"/"json"), `SKIP_DB`, `DOCS_USERNAME`, `DOCS_PASSWORD`.
 
